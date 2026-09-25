@@ -51,6 +51,34 @@ export interface RoutePlanRequest {
   destination_name?: string
   mode: 'walk' | 'drive'
   depart_at: string
+  depart_hour?: number
+}
+
+export interface ScoredRouteSegment {
+  start: [number, number]
+  end: [number, number]
+  distance: number
+  score: number
+  confidence: 'high' | 'estimated'
+  factors: Record<string, number>
+}
+
+export interface ScoredRoute {
+  route_index: number
+  route_name?: string
+  route_color?: string
+  geometry: { type: string; coordinates: [number, number][] }
+  safety_score: number
+  worst_segment_score: number
+  mean_segment_score: number
+  total_distance_m: number
+  total_time_sec: number
+  is_safest: boolean
+  segments: ScoredRouteSegment[]
+  segment_colors: string[]
+  depart_hour?: number
+  time_category?: string
+  time_description?: string
 }
 
 
@@ -132,10 +160,14 @@ export interface WSMessage {
 }
 
 export interface PlanNavState {
-  routes: RouteCandidate[]
+  routes: ScoredRoute[]
   origin: [number, number]
   destination: [number, number]
   mode: 'walk' | 'drive'
+  depart_hour?: number
+  depart_time_str?: string
+  time_category?: string
+  time_description?: string
 }
 
 export const ESCALATION_COLORS: Record<EscalationLevel, string> = {

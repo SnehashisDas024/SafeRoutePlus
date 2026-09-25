@@ -1,10 +1,10 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, JSON, DateTime, ForeignKey, Enum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
-from sqlalchemy.types import TypeDecorator, LargeBinary
+from sqlalchemy.types import TypeDecorator, String
 from geoalchemy2.elements import WKBElement
 
 class Geometry(TypeDecorator):
-    impl = LargeBinary
+    impl = String
     cache_ok = True
 
     def __init__(self, geometry_type='GEOMETRY', srid=4326, **kwargs):
@@ -13,30 +13,32 @@ class Geometry(TypeDecorator):
         self.srid = srid
 
     def process_bind_param(self, value, dialect):
+        """Return WKB as hex string with SRID prefix for PostGIS ST_GeomFromEWKB."""
         if value is None:
             return None
         if isinstance(value, WKBElement):
-            return bytes(value.data)
+            # Return EWKB hex — PostGIS accepts this via ST_GeomFromEWKB
+            raw = value.data
+            if isinstance(raw, memoryview):
+                raw = bytes(raw)
+            if isinstance(raw, bytes):
+                return raw.hex()
+            return raw
+        if hasattr(value, 'wkb_hex'):
+            return value.wkb_hex
         if hasattr(value, 'wkb'):
-            return value.wkb
+            return value.wkb.hex()
         if isinstance(value, bytes):
-            return value
-        if isinstance(value, str):
-            from shapely import wkt
-            wkt_part = value.split(";", 1)[1] if ";" in value else value
-            shape_obj = wkt.loads(wkt_part)
-            return shape_obj.wkb
-        if hasattr(value, 'data'):
-            if isinstance(value.data, (bytes, memoryview)):
-                return bytes(value.data)
-            from shapely import wkt
-            wkt_part = str(value.data).split(";", 1)[1] if ";" in str(value.data) else str(value.data)
-            return wkt.loads(wkt_part).wkb
-        return bytes(value)
+            return value.hex()
+        return value
 
     def process_result_value(self, value, dialect):
         if value is None:
             return None
+        if isinstance(value, str):
+            return WKBElement(bytes.fromhex(value), srid=self.srid)
+        if isinstance(value, (bytes, memoryview)):
+            return WKBElement(bytes(value), srid=self.srid)
         return WKBElement(bytes(value), srid=self.srid)
 from app.models.database import Base
 from datetime import datetime

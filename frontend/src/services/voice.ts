@@ -1,11 +1,17 @@
 import { VOICE_SAFE_WORD_MIN_CONFIDENCE } from './config'
 
-type VoiceEventKind = 'duress_word' | 'safe_word' | 'checkin_spoken'
+type VoiceEventKind = 'duress_word' | 'safe_word' | 'checkin_spoken' | 'loud_noise' | 'distress_keyword'
 type VoiceHandler = (event: { kind: VoiceEventKind; confidence: number; transcript: string }) => void
 
 let recognition: SpeechRecognition | null = null
 let handler: VoiceHandler | null = null
 let shouldListen = false
+
+let audioContext: AudioContext | null = null
+let mediaStream: MediaStream | null = null
+let volumeInterval: number | null = null
+
+const DISTRESS_KEYWORDS = ['help', 'stop', 'please', 'leave me alone', 'police']
 
 function normalize(p: string): string {
   return p.toLowerCase().replace(/[.,!?;:]/g, '').trim()
@@ -38,11 +44,49 @@ export function speak(text: string): Promise<void> {
   })
 }
 
+async function startScreamDetection() {
+  if (audioContext || !shouldListen) return
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    audioContext = new window.AudioContext()
+    const source = audioContext.createMediaStreamSource(mediaStream)
+    const analyser = audioContext.createAnalyser()
+    analyser.fftSize = 256
+    source.connect(analyser)
+    const dataArray = new Uint8Array(analyser.frequencyBinCount)
+
+    let loudTicks = 0
+    volumeInterval = window.setInterval(() => {
+      if (!shouldListen) return
+      analyser.getByteFrequencyData(dataArray)
+      let sum = 0
+      for (let i = 0; i < dataArray.length; i++) sum += dataArray[i]
+      const avg = sum / dataArray.length
+      
+      if (avg > 140) { // arbitrary loud threshold
+        loudTicks++
+        if (loudTicks > 15) { // sustained loud noise for ~1.5s
+          handler?.({ kind: 'loud_noise', confidence: 1.0, transcript: '[SUSTAINED LOUD NOISE]' })
+          loudTicks = -30 // cooldown
+        }
+      } else {
+        if (loudTicks > 0) loudTicks = 0
+        else if (loudTicks < 0) loudTicks++ // cooldown recovery
+      }
+    }, 100)
+  } catch (err) {
+    console.warn('AudioContext mic access failed', err)
+  }
+}
+
 export function startListening(cfg: { safeWordHash: string; duressWordHash: string; enabled: boolean }, onEvent: VoiceHandler) {
   handler = onEvent
   const Ctor = getCtor()
   if (!Ctor || !cfg.enabled) return false
   shouldListen = true
+  
+  startScreamDetection()
+
   if (!recognition) {
     recognition = new Ctor()
     recognition.lang = 'en-US'
@@ -54,34 +98,52 @@ export function startListening(cfg: { safeWordHash: string; duressWordHash: stri
       const transcript = res[0].transcript
       const confidence = res[0].confidence ?? 1.0
       if (!cfg.enabled) return
-      if (await hashPhrase(transcript) === cfg.duressWordHash && cfg.duressWordHash) {
+
+      const norm = normalize(transcript)
+
+      if (cfg.duressWordHash && await hashPhrase(transcript) === cfg.duressWordHash) {
         handler?.({ kind: 'duress_word', confidence, transcript })
         return
       }
+
       if (cfg.safeWordHash && await hashPhrase(transcript) === cfg.safeWordHash) {
-        if (confidence < VOICE_SAFE_WORD_MIN_CONFIDENCE) return // low-confidence safe word ignored
+        if (confidence < VOICE_SAFE_WORD_MIN_CONFIDENCE) return
         handler?.({ kind: 'safe_word', confidence, transcript })
         return
       }
+
+      if (DISTRESS_KEYWORDS.some(k => norm.includes(k))) {
+        handler?.({ kind: 'distress_keyword', confidence, transcript })
+        return
+      }
+
       handler?.({ kind: 'checkin_spoken', confidence, transcript })
     }
-    recognition.onerror = () => { /* auto-restart via onend */ }
+    recognition.onerror = () => { }
     recognition.onend = () => {
       if (shouldListen) {
-        try { recognition?.start() } catch { /* race */ }
+        try { recognition?.start() } catch { }
       }
     }
   }
-  try { recognition.start() } catch { /* already started */ }
+  try { recognition.start() } catch { }
   return true
 }
 
 export function stopListening() {
   shouldListen = false
-  try { recognition?.stop() } catch { /* noop */ }
+  try { recognition?.stop() } catch { }
+  if (volumeInterval) window.clearInterval(volumeInterval)
+  if (audioContext) {
+    audioContext.close()
+    audioContext = null
+  }
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(t => t.stop())
+    mediaStream = null
+  }
 }
 
-// One-shot microphone test against a target word (plain text, hashed locally)
 export function testMicrophone(targetWord: string): Promise<{ match: boolean; transcript: string; confidence: number }> {
   return new Promise((resolve) => {
     const Ctor = getCtor()
@@ -105,4 +167,3 @@ export function testMicrophone(targetWord: string): Promise<{ match: boolean; tr
     try { test.start() } catch { resolve({ match: false, transcript: '', confidence: 0 }) }
   })
 }
-

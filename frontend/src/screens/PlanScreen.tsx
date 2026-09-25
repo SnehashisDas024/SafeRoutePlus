@@ -2,15 +2,14 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { planRoute, getRecentRoutes, getFrequentRoutes } from '../services/api'
+import { planRoute, safePlanRoute, getRecentRoutes, getFrequentRoutes } from '../services/api'
 import { useLocation } from '../hooks/useLocation'
 import { MAP_DEFAULTS, KOLKATA_PRESETS } from '../services/config'
 import { IconPin, IconSatellite, IconWalk, IconCar, IconSpark, IconShield, IconCheck } from '../components/Icons'
 import PlaceAutocomplete from '../components/PlaceAutocomplete'
 import RouteHistoryList from '../components/RouteHistoryList'
 import type { LeafletMouseEvent } from 'leaflet'
-import type { RouteCandidate, PlanNavState, RouteHistoryItem } from '../types'
-
+import type { RouteCandidate, ScoredRoute, PlanNavState, RouteHistoryItem } from '../types'
 
 const INK = '#1E4E6E'
 
@@ -65,7 +64,15 @@ function MapController({
     const timer = setTimeout(() => {
       map.invalidateSize()
     }, 150)
-    return () => clearTimeout(timer)
+    const container = map.getContainer()
+    const resizeObserver = new window.ResizeObserver(() => {
+      map.invalidateSize()
+    })
+    resizeObserver.observe(container)
+    return () => {
+      clearTimeout(timer)
+      resizeObserver.disconnect()
+    }
   }, [map])
 
   // Automatically zoom and frame origin and destination pins
@@ -157,7 +164,7 @@ export default function PlanScreen() {
     setLoading(true)
     setError('')
     try {
-      const routes: RouteCandidate[] = await planRoute({
+      const routes: ScoredRoute[] = await safePlanRoute({
         origin,
         destination,
         origin_name: originName || undefined,

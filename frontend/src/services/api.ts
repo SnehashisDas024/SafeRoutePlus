@@ -3,6 +3,7 @@ import type {
   RoutePlanRequest,
   RouteCandidate,
   RouteHistoryItem,
+  ScoredRoute,
   TripStartRequest,
   TripStartResponse,
   EscalationState,
@@ -62,6 +63,9 @@ export const getRecentRoutes = (limit = 10): Promise<RouteHistoryItem[]> =>
 export const getFrequentRoutes = (limit = 10): Promise<RouteHistoryItem[]> =>
   fetchApi<RouteHistoryItem[]>(`/routes/history/frequent?limit=${limit}`)
 
+// ML-powered route planning with safety scores
+export const safePlanRoute = (req: RoutePlanRequest): Promise<ScoredRoute[]> =>
+  fetchApi<ScoredRoute[]>('/routes/safe-plan', { method: 'POST', body: JSON.stringify(req) })
 
 // Trips
 export const startTrip = (data: TripStartRequest): Promise<TripStartResponse> =>

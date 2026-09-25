@@ -51,9 +51,13 @@ export function useTrip(tripId: string | null) {
     fetchEscalation()
   }, [tripId, fetchEscalation])
 
-  const voiceEvent = useCallback(async (kind: 'duress_word' | 'safe_word' | 'checkin_spoken', confidence: number) => {
+  const voiceEvent = useCallback(async (kind: 'duress_word' | 'safe_word' | 'checkin_spoken' | 'loud_noise' | 'distress_keyword', confidence: number) => {
     if (!tripId) return
-    try { await sendVoiceEvent(tripId, { kind, phrase_hash: '', confidence }) } catch { /* ignore */ }
+    if (kind === 'loud_noise' || kind === 'distress_keyword') {
+      try { await triggerSOS(tripId) } catch { /* ignore */ }
+    } else {
+      try { await sendVoiceEvent(tripId, { kind, phrase_hash: '', confidence }) } catch { /* ignore */ }
+    }
     fetchEscalation()
   }, [tripId, fetchEscalation])
 
