@@ -1,12 +1,33 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet'
+
+// Helper component to fix Leaflet map tile rendering issues on resize
+function MapController() {
+  const map = useMap()
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize()
+    }, 150)
+    const container = map.getContainer()
+    const resizeObserver = new window.ResizeObserver(() => {
+      map.invalidateSize()
+    })
+    resizeObserver.observe(container)
+    return () => {
+      clearTimeout(timer)
+      resizeObserver.disconnect()
+    }
+  }, [map])
+  return null
+}
+
 import { useTrip } from '../hooks/useTrip'
 import { useLocation } from '../hooks/useLocation'
 import { getVoiceConfig } from '../services/api'
 import { startListening, stopListening, speak, isVoiceSupported } from '../services/voice'
 import { EscalationBanner } from '../components/ui'
-import { IconCompass, IconPin, IconClock, IconCheck, IconSiren, IconPencil, IconLock, IconSignal } from '../components/Icons'
+import { IconCompass, IconPin, IconClock, IconCheck, IconSiren, IconPencil, IconLock, IconSignal, IconMap } from '../components/Icons'
 import { MAP_DEFAULTS } from '../services/config'
 import type { EscalationLevel } from '../types'
 
@@ -23,7 +44,6 @@ export default function ActiveTripScreen() {
 
   useEffect(() => { start() }, [start])
 
-  // Stream GPS pings over WebSocket
   useEffect(() => {
     if (!location || !tripId) return
     sendPing({
@@ -33,7 +53,6 @@ export default function ActiveTripScreen() {
     })
   }, [location, tripId, sendPing])
 
-  // Check-in countdown (cosmetic — backend timer is authoritative)
   useEffect(() => {
     if (escalation?.level === 'L2_Checkin' && !checkinDeadline) setCheckinDeadline(Date.now() + 45000)
     if (escalation?.level !== 'L2_Checkin') setCheckinDeadline(null)
@@ -45,7 +64,6 @@ export default function ActiveTripScreen() {
     return () => clearInterval(t)
   }, [checkinDeadline])
 
-  // Voice: duress/safe word listening + spoken check-in replies
   useEffect(() => {
     let cancelled = false
     if (!tripId) return
@@ -60,12 +78,11 @@ export default function ActiveTripScreen() {
             if (ev.kind === 'checkin_spoken') checkin().catch(() => undefined)
           },
         )
-      } catch { /* voice optional */ }
+      } catch { }
     })()
     return () => { cancelled = true; stopListening() }
   }, [tripId, voiceEvent, checkin])
 
-  // TTS prompts on level change
   useEffect(() => {
     const lvl = escalation?.level
     if (!lvl || spokenRef.current === lvl) return
@@ -91,6 +108,24 @@ export default function ActiveTripScreen() {
   const duressSilent = level === 'L3_Alert' && escalation?.reason === 'voice_duress'
   const position: [number, number] | null = location ? [location.lat, location.lon] : null
 
+  const destinationStr = localStorage.getItem('activeDestination')
+  const destination: [number, number] | null = destinationStr ? JSON.parse(destinationStr) : null
+
+  function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371e3
+    const p1 = lat1 * Math.PI/180
+    const p2 = lat2 * Math.PI/180
+    const dp = (lat2-lat1) * Math.PI/180
+    const dl = (lon2-lon1) * Math.PI/180
+    const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2)
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  }
+
+  let distanceToDest = Infinity
+  if (position && destination) {
+    distanceToDest = getDistance(position[0], position[1], destination[1], destination[0])
+  }
+
   return (
     <>
       <EscalationBanner level={level} reason={escalation?.reason} />
@@ -101,7 +136,7 @@ export default function ActiveTripScreen() {
       )}
 
       <div className="row mt-2 mb-2" style={{ flexWrap: 'wrap' }}>
-        <span className={`badge ${wsStatus === 'connected' ? 'safe' : 'warn'}`}>
+        <span className={adge \}>
           ● {wsStatus === 'connected' ? 'Live connected' : wsStatus}
         </span>
         <span className="badge neutral">Trip {tripId.slice(0, 8)}…</span>
@@ -111,6 +146,7 @@ export default function ActiveTripScreen() {
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 1.5fr) minmax(280px, 1fr)' }}>
         <div className="clay card map-box" style={{ padding: 0, minHeight: 360 }}>
           <MapContainer center={MAP_DEFAULTS.center} zoom={MAP_DEFAULTS.zoom} style={{ height: '100%', width: '100%' }}>
+            <MapController />
             <TileLayer url={MAP_DEFAULTS.tileUrl} attribution={MAP_DEFAULTS.attribution} />
             {position && (
               <CircleMarker center={position} radius={10} pathOptions={{ color: '#2F7FBC', fillColor: '#6FB6E8', fillOpacity: 1, weight: 3 }} />
@@ -139,9 +175,23 @@ export default function ActiveTripScreen() {
               <button className="clay-btn danger" style={{ padding: 15 }} onClick={() => sos().catch(() => undefined)}>
                 <IconSiren size={17} /> Trigger SOS (L3)
               </button>
-              <button className="clay-btn ghost" onClick={() => navigate('/report')}>
-                <IconPencil size={16} /> Finish & report trip
-              </button>
+              
+              {(!destination || distanceToDest <= 100) ? (
+                <button className="clay-btn ghost" onClick={() => navigate('/report')}>
+                  <IconPencil size={16} /> Finish & report trip
+                </button>
+              ) : (
+                <div className="clay-inset" style={{ padding: 12, textAlign: 'center', fontSize: 13, color: 'var(--ink-soft)' }}>
+                  <IconMap size={16} style={{ display: 'block', margin: '0 auto 4px', color: 'var(--ink-faint)' }} />
+                  <strong>Finish trip</strong> will appear when you are within 100m of the destination. <br />
+                  <span style={{ fontSize: 11, opacity: 0.7 }}>({Math.round(distanceToDest)}m away)</span>
+                  <div style={{ marginTop: 8 }}>
+                    <button className="clay-btn ghost" style={{ padding: '6px 12px', fontSize: 12 }} onClick={() => navigate('/report')}>
+                      Force End Early
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="clay-inset row mt-2" style={{ padding: 14, fontSize: 12.5, fontWeight: 700, color: 'var(--ink-soft)', gap: 9, alignItems: 'flex-start' }}>
               <IconLock size={17} color="var(--ink-soft)" />
@@ -153,5 +203,3 @@ export default function ActiveTripScreen() {
     </>
   )
 }
-
-

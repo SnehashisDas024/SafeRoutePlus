@@ -63,7 +63,15 @@ function MapController({
     const timer = setTimeout(() => {
       map.invalidateSize()
     }, 150)
-    return () => clearTimeout(timer)
+    const container = map.getContainer()
+    const resizeObserver = new window.ResizeObserver(() => {
+      map.invalidateSize()
+    })
+    resizeObserver.observe(container)
+    return () => {
+      clearTimeout(timer)
+      resizeObserver.disconnect()
+    }
   }, [map])
 
   // Automatically zoom and frame origin and destination pins
