@@ -34,6 +34,7 @@ export interface RoutePlanRequest {
   destination: [number, number]
   mode: 'walk' | 'drive'
   depart_at: string
+  depart_hour?: number
 }
 
 export interface ScoredRouteSegment {
@@ -47,6 +48,8 @@ export interface ScoredRouteSegment {
 
 export interface ScoredRoute {
   route_index: number
+  route_name?: string
+  route_color?: string
   geometry: { type: string; coordinates: [number, number][] }
   safety_score: number
   worst_segment_score: number
@@ -56,6 +59,9 @@ export interface ScoredRoute {
   is_safest: boolean
   segments: ScoredRouteSegment[]
   segment_colors: string[]
+  depart_hour?: number
+  time_category?: string
+  time_description?: string
 }
 
 export interface TripStartRequest {
@@ -140,6 +146,10 @@ export interface PlanNavState {
   origin: [number, number]
   destination: [number, number]
   mode: 'walk' | 'drive'
+  depart_hour?: number
+  depart_time_str?: string
+  time_category?: string
+  time_description?: string
 }
 
 export const ESCALATION_COLORS: Record<EscalationLevel, string> = {

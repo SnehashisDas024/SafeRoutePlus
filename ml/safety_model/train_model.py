@@ -32,6 +32,9 @@ FEATURE_COLUMNS = [
     "road_quality",
     "cctv_coverage",
     "historical_incident_rate",
+    "hour",
+    "is_night",
+    "time_risk_score",
 ]
 LABEL_COLUMN = "safety_score"
 
