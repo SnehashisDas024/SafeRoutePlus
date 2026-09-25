@@ -1,12 +1,32 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 
-export interface NominatimResult {
-  place_id: number
-  display_name: string
-  lat: string
-  lon: string
+/** A single autocomplete suggestion from the Photon geocoding API */
+interface PhotonFeature {
   type: string
-  class: string
+  geometry: {
+    coordinates: [number, number] // [lon, lat]
+    type: string
+  }
+  properties: {
+    osm_id: number
+    osm_type: string
+    name?: string
+    street?: string
+    housenumber?: string
+    city?: string
+    district?: string
+    state?: string
+    country?: string
+    postcode?: string
+    type?: string
+    osm_key?: string
+    osm_value?: string
+  }
+}
+
+interface PhotonResponse {
+  type: string
+  features: PhotonFeature[]
 }
 
 interface PlaceAutocompleteProps {
@@ -18,8 +38,9 @@ interface PlaceAutocompleteProps {
   onFocus?: () => void
 }
 
-// Bias search results towards Kolkata / India region
-const VIEWBOX = '88.20,22.40,88.55,22.70'
+// Bias search results towards Kolkata
+const KOLKATA_LAT = 22.57
+const KOLKATA_LON = 88.36
 
 export default function PlaceAutocomplete({
   value,
@@ -30,7 +51,7 @@ export default function PlaceAutocomplete({
   onFocus,
 }: PlaceAutocompleteProps) {
   const [query, setQuery] = useState(value)
-  const [suggestions, setSuggestions] = useState<NominatimResult[]>([])
+  const [suggestions, setSuggestions] = useState<PhotonFeature[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [loading, setLoading] = useState(false)
   const [highlightIdx, setHighlightIdx] = useState(-1)
@@ -62,21 +83,19 @@ export default function PlaceAutocomplete({
     }
     setLoading(true)
     try {
+      // Photon API — purpose-built for autocomplete, returns structured place data
       const params = new URLSearchParams({
         q,
-        format: 'json',
-        addressdetails: '1',
-        limit: '6',
-        viewbox: VIEWBOX,
-        bounded: '0',
+        lat: KOLKATA_LAT.toString(),
+        lon: KOLKATA_LON.toString(),
+        limit: '7',
+        lang: 'en',
       })
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-        headers: { 'Accept-Language': 'en' },
-      })
+      const res = await fetch(`https://photon.komoot.io/api/?${params}`)
       if (res.ok) {
-        const data: NominatimResult[] = await res.json()
-        setSuggestions(data)
-        setShowDropdown(data.length > 0)
+        const data: PhotonResponse = await res.json()
+        setSuggestions(data.features)
+        setShowDropdown(data.features.length > 0)
         setHighlightIdx(-1)
       }
     } catch {
@@ -92,16 +111,19 @@ export default function PlaceAutocomplete({
     onChange(val, null) // clear coords while typing
 
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => fetchSuggestions(val), 350)
+    debounceRef.current = setTimeout(() => fetchSuggestions(val), 300)
   }
 
-  const handleSelect = (item: NominatimResult) => {
-    const shortName = formatShortName(item.display_name)
-    const coords: [number, number] = [parseFloat(item.lon), parseFloat(item.lat)]
-    setQuery(shortName)
+  const handleSelect = (feature: PhotonFeature) => {
+    const name = formatPlaceName(feature)
+    const coords: [number, number] = [
+      feature.geometry.coordinates[0], // lon
+      feature.geometry.coordinates[1], // lat
+    ]
+    setQuery(name)
     setSuggestions([])
     setShowDropdown(false)
-    onChange(shortName, coords)
+    onChange(name, coords)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -125,14 +147,7 @@ export default function PlaceAutocomplete({
 
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          position: 'relative',
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
         <input
           ref={inputRef}
           type="text"
@@ -195,17 +210,19 @@ export default function PlaceAutocomplete({
             boxShadow: '0 8px 32px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08)',
             border: '1px solid rgba(30, 78, 110, 0.1)',
             overflow: 'hidden',
-            maxHeight: 280,
+            maxHeight: 300,
             overflowY: 'auto',
           }}
         >
-          {suggestions.map((item, idx) => {
+          {suggestions.map((feature, idx) => {
             const isHighlighted = idx === highlightIdx
+            const mainName = formatPlaceName(feature)
+            const subText = formatSubText(feature)
             return (
               <button
-                key={item.place_id}
+                key={`${feature.properties.osm_id}-${idx}`}
                 type="button"
-                onClick={() => handleSelect(item)}
+                onClick={() => handleSelect(feature)}
                 onMouseEnter={() => setHighlightIdx(idx)}
                 style={{
                   display: 'flex',
@@ -222,28 +239,31 @@ export default function PlaceAutocomplete({
                   fontFamily: 'inherit',
                 }}
               >
+                {/* Location Pin Icon */}
                 <span
                   style={{
                     flexShrink: 0,
-                    width: 28,
-                    height: 28,
+                    width: 30,
+                    height: 30,
                     borderRadius: 8,
                     background: isHighlighted ? accentColor : '#E8E2D6',
-                    color: isHighlighted ? '#fff' : '#1E4E6E',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: 13,
-                    fontWeight: 700,
                     marginTop: 1,
                   }}
                 >
-                  {getPlaceIcon(item.class)}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isHighlighted ? '#fff' : '#1E4E6E'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
                 </span>
+
+                {/* Name + subtitle */}
                 <div style={{ flex: 1, overflow: 'hidden' }}>
                   <div
                     style={{
-                      fontSize: 13,
+                      fontSize: 13.5,
                       fontWeight: 700,
                       color: '#1E4E6E',
                       whiteSpace: 'nowrap',
@@ -251,21 +271,40 @@ export default function PlaceAutocomplete({
                       textOverflow: 'ellipsis',
                     }}
                   >
-                    {formatShortName(item.display_name)}
+                    {mainName}
                   </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: '#8899A6',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      marginTop: 1,
-                    }}
-                  >
-                    {item.display_name}
-                  </div>
+                  {subText && (
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: '#8899A6',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        marginTop: 2,
+                      }}
+                    >
+                      {subText}
+                    </div>
+                  )}
                 </div>
+
+                {/* Place type badge */}
+                <span
+                  style={{
+                    flexShrink: 0,
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: '#8899A6',
+                    background: '#F0ECE4',
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    textTransform: 'capitalize',
+                    marginTop: 4,
+                  }}
+                >
+                  {feature.properties.type || feature.properties.osm_value || 'place'}
+                </span>
               </button>
             )
           })}
@@ -275,34 +314,42 @@ export default function PlaceAutocomplete({
   )
 }
 
-/** Shorten "Place, Area, City, State, Country" to first 2–3 parts */
-function formatShortName(displayName: string): string {
-  const parts = displayName.split(', ')
-  return parts.slice(0, Math.min(3, parts.length)).join(', ')
+/**
+ * Format the primary display name from structured Photon properties.
+ * Prioritizes the actual place name over street addresses.
+ */
+function formatPlaceName(feature: PhotonFeature): string {
+  const p = feature.properties
+  // Use the named place first
+  if (p.name) return p.name
+  // Fall back to street + house number
+  if (p.street) {
+    return p.housenumber ? `${p.housenumber} ${p.street}` : p.street
+  }
+  // Fall back to district or city
+  return p.district || p.city || p.state || 'Unknown place'
 }
 
-/** Map Nominatim class to a small emoji icon */
-function getPlaceIcon(cls: string): string {
-  switch (cls) {
-    case 'railway':
-      return '🚉'
-    case 'highway':
-      return '🛣️'
-    case 'amenity':
-      return '🏛️'
-    case 'tourism':
-      return '🏖️'
-    case 'shop':
-      return '🛒'
-    case 'building':
-      return '🏢'
-    case 'place':
-      return '📍'
-    case 'natural':
-      return '🌳'
-    case 'leisure':
-      return '🎭'
-    default:
-      return '📌'
-  }
+/**
+ * Format a secondary subtitle line showing the location context.
+ * e.g. "Park Circus, Kolkata, West Bengal"
+ */
+function formatSubText(feature: PhotonFeature): string {
+  const p = feature.properties
+  const parts: string[] = []
+
+  // Add street if there's a named place (so the street gives context)
+  if (p.name && p.street) parts.push(p.street)
+  // Add district/neighborhood for local context
+  if (p.district && p.district !== p.name) parts.push(p.district)
+  // Add city
+  if (p.city && p.city !== p.name && p.city !== p.district) parts.push(p.city)
+  // Add state
+  if (p.state && p.state !== p.city) parts.push(p.state)
+  // Add country only if not India (since this is biased to Kolkata)
+  if (p.country && p.country !== 'India' && p.country !== p.state) parts.push(p.country)
+
+  return parts.join(', ')
 }
+
+
