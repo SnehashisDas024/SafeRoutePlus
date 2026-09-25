@@ -139,11 +139,11 @@ export default function ActiveTripScreen() {
       )}
 
       <div className="row mt-2 mb-2" style={{ flexWrap: 'wrap' }}>
-        <span className={`badge ${wsStatus === 'connected' ? 'safe' : 'warn'}`}>
+        <span className={'badge ' + (wsStatus === 'connected' ? 'safe' : 'warn')}>
           ● {wsStatus === 'connected' ? 'Live connected' : wsStatus}
         </span>
-        <span className="badge neutral">Trip {tripId.slice(0, 8)}...</span>
-        {position && <span className="badge neutral"><IconSignal size={13} /> {position[0].toFixed(4)}, {position[1].toFixed(4)}</span>}
+        <span className={'badge ' + (wsStatus === 'connected' ? 'safe' : 'warn')}>Trip {tripId.slice(0, 8)}…</span>
+        {position && <span className={'badge ' + (wsStatus === 'connected' ? 'safe' : 'warn')}><IconSignal size={13} /> {position[0].toFixed(4)}, {position[1].toFixed(4)}</span>}
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 1.5fr) minmax(280px, 1fr)' }}>

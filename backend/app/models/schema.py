@@ -13,10 +13,19 @@ class Geometry(TypeDecorator):
         self.srid = srid
 
     def process_bind_param(self, value, dialect):
+        """Return WKB as hex string with SRID prefix for PostGIS ST_GeomFromEWKB."""
         if value is None:
             return None
         if isinstance(value, WKBElement):
-            return value.data.hex() if hasattr(value.data, 'hex') else value.data
+            # Return EWKB hex — PostGIS accepts this via ST_GeomFromEWKB
+            raw = value.data
+            if isinstance(raw, memoryview):
+                raw = bytes(raw)
+            if isinstance(raw, bytes):
+                return raw.hex()
+            return raw
+        if hasattr(value, 'wkb_hex'):
+            return value.wkb_hex
         if hasattr(value, 'wkb'):
             return value.wkb.hex()
         if isinstance(value, bytes):
@@ -28,6 +37,8 @@ class Geometry(TypeDecorator):
             return None
         if isinstance(value, str):
             return WKBElement(bytes.fromhex(value), srid=self.srid)
+        if isinstance(value, (bytes, memoryview)):
+            return WKBElement(bytes(value), srid=self.srid)
         return WKBElement(bytes(value), srid=self.srid)
 from app.models.database import Base
 from datetime import datetime

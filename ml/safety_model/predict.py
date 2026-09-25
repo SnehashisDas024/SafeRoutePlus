@@ -21,6 +21,9 @@ FEATURE_COLUMNS = [
     "road_quality",
     "cctv_coverage",
     "historical_incident_rate",
+    "hour",
+    "is_night",
+    "time_risk_score",
 ]
 
 # Police stations in Kolkata (same as training data)
@@ -77,9 +80,8 @@ def load_model():
 
 def estimate_features_for_location(lat, lon, hour):
     """
-    Estimate the 6 safety features for a given location and hour.
-    In production, these would come from the static_features table + real-time data.
-    For demo, we synthesize them deterministically from geography.
+    Estimate the safety features for a given location and hour.
+    Synthesizes them deterministically from geography and time-of-day parameters.
     """
     # Use lat/lon as seed for deterministic but varied values
     seed_val = int(abs(lat * 10000 + lon * 10000)) % 100000
@@ -104,43 +106,59 @@ def estimate_features_for_location(lat, lon, hour):
             safe += weight * (1 - d / radius)
     safe = min(safe, 1.0)
 
-    # Street lights
-    base_light = 0.75 - danger * 0.3 + safe * 0.2
-    if 18 <= hour or hour <= 5:
-        base_light -= 0.1
-    street_light = max(0, min(1, base_light + rng.gauss(0, 0.05)))
+    # Time risk factor
+    if 23 <= hour or hour <= 4:
+        time_risk = 0.88 + rng.uniform(-0.03, 0.05)
+        is_night = 1.0
+    elif 5 <= hour <= 6:
+        time_risk = 0.48 + rng.uniform(-0.03, 0.05)
+        is_night = 0.5
+    elif 7 <= hour <= 9:
+        time_risk = 0.16 + rng.uniform(-0.02, 0.04)
+        is_night = 0.0
+    elif 10 <= hour <= 16:
+        time_risk = 0.11 + rng.uniform(-0.02, 0.03)
+        is_night = 0.0
+    elif 17 <= hour <= 19:
+        time_risk = 0.22 + rng.uniform(-0.02, 0.04)
+        is_night = 0.3
+    else:  # 20–22
+        time_risk = 0.54 + rng.uniform(-0.03, 0.06)
+        is_night = 0.8 if hour >= 21 else 0.5
+    time_risk = max(0.05, min(1.0, time_risk))
 
-    # Crowd density
+    # Street lights: Outskirts / dangerous areas suffer worse lighting at night
+    base_light = 0.75 - danger * 0.35 + safe * 0.25
+    if is_night > 0:
+        base_light -= 0.18 * (1.0 - safe * 0.5)
+    street_light = max(0.05, min(1.0, base_light + rng.gauss(0, 0.04)))
+
+    # Crowd density: strong rush vs dead night contrast
     if 8 <= hour <= 10 or 17 <= hour <= 20:
-        base_crowd = 0.7 + safe * 0.1 + danger * 0.1
+        base_crowd = 0.75 + safe * 0.1 + danger * 0.05
     elif 11 <= hour <= 16:
-        base_crowd = 0.5 + safe * 0.1
-    elif 22 <= hour or hour <= 5:
-        base_crowd = 0.1 + danger * 0.05
+        base_crowd = 0.55 + safe * 0.1
+    elif 22 <= hour or hour <= 4:
+        base_crowd = 0.08 + danger * 0.04
+    elif 5 <= hour <= 7:
+        base_crowd = 0.25 + safe * 0.05
     else:
-        base_crowd = 0.3
-    crowd = max(0, min(1, base_crowd + rng.gauss(0, 0.05)))
+        base_crowd = 0.35
+    crowd = max(0.02, min(0.98, base_crowd + rng.gauss(0, 0.04)))
 
     # Road quality
-    road_q = max(0, min(1, 0.6 + safe * 0.3 - danger * 0.15 + rng.gauss(0, 0.05)))
+    road_q = max(0.1, min(1.0, 0.6 + safe * 0.3 - danger * 0.15 + rng.gauss(0, 0.04)))
 
     # CCTV
     base_cctv = 0.3 + safe * 0.5 - danger * 0.1
     if police_dist < 500:
-        base_cctv += 0.15
-    cctv = max(0, min(1, base_cctv + rng.gauss(0, 0.05)))
+        base_cctv += 0.20
+    cctv = max(0.05, min(1.0, base_cctv + rng.gauss(0, 0.04)))
 
-    # Incident rate
-    time_risk = 0.5
-    if 23 <= hour or hour <= 4:
-        time_risk = 0.9
-    elif 20 <= hour <= 22:
-        time_risk = 0.6
-    elif 7 <= hour <= 16:
-        time_risk = 0.15
-    incident = max(0, 0.5 + danger * 3.0 - safe * 0.3) * (0.5 + time_risk)
-    incident += rng.gauss(0, 0.15)
-    incident = max(0, incident)
+    # Incident rate: Night + hotspot risk multiplies
+    base_incident = 0.4 + danger * 3.2 - safe * 0.35
+    base_incident = max(0.1, base_incident) * (0.4 + 1.3 * time_risk)
+    incident = max(0.0, base_incident + rng.gauss(0, 0.15))
 
     return {
         "street_light_coverage": round(street_light, 4),
@@ -149,6 +167,9 @@ def estimate_features_for_location(lat, lon, hour):
         "road_quality": round(road_q, 4),
         "cctv_coverage": round(cctv, 4),
         "historical_incident_rate": round(incident, 4),
+        "hour": hour,
+        "is_night": round(is_night, 2),
+        "time_risk_score": round(time_risk, 4),
     }
 
 
@@ -165,18 +186,33 @@ def predict_safety(lat, lon, hour):
     if model is not None:
         feature_vec = np.array([[features[col] for col in FEATURE_COLUMNS]])
         raw_score = float(model.predict(feature_vec)[0])
-        score = max(0.0, min(1.0, raw_score))
+        score = max(0.05, min(0.98, raw_score))
         confidence = "high"
     else:
-        # Fallback: weighted sum (same as ground-truth formula)
+        # Fallback: time-aware formula mirroring the ML model
         sl = features["street_light_coverage"]
         pd = min(features["police_station_dist_m"] / 5000.0, 1.0)
         cd = features["crowd_density"]
         rq = features["road_quality"]
         cc = features["cctv_coverage"]
         ir = min(features["historical_incident_rate"] / 4.0, 1.0)
-        score = 0.25 * sl + 0.15 * (1 - pd) + 0.15 * cd + 0.10 * rq + 0.15 * cc + 0.20 * (1 - ir)
-        score = max(0.0, min(1.0, score))
+        time_risk = features["time_risk_score"]
+        is_night = features["is_night"]
+
+        base_infra = (
+            0.20 * sl +
+            0.15 * (1.0 - pd) +
+            0.12 * cd +
+            0.10 * rq +
+            0.15 * cc +
+            0.15 * (1.0 - ir)
+        )
+        time_delta = 0.12 * (0.35 - time_risk)
+        dark_penalty = -0.16 * is_night * (1.0 - sl) if (is_night > 0.2 and sl < 0.60) else 0.0
+        isolation_penalty = -0.12 * is_night * (1.0 - cd) * pd if (is_night > 0.2 and cd < 0.25) else 0.0
+        safe_haven = 0.08 * is_night if (cc > 0.65 and pd < 0.25) else 0.0
+
+        score = max(0.05, min(0.98, base_infra + time_delta + dark_penalty + isolation_penalty + safe_haven))
         confidence = "estimated"
 
     return {
@@ -189,6 +225,9 @@ def predict_safety(lat, lon, hour):
             "road_quality": features["road_quality"],
             "cctv_coverage": features["cctv_coverage"],
             "incident_safety": round(1 - min(features["historical_incident_rate"] / 4.0, 1.0), 4),
+            "time_safety": round(1.0 - features["time_risk_score"], 4),
+            "is_night": features["is_night"],
+            "hour": hour,
         },
     }
 
@@ -232,6 +271,9 @@ def predict_batch(locations, hour):
                     "road_quality": feats["road_quality"],
                     "cctv_coverage": feats["cctv_coverage"],
                     "incident_safety": round(1 - min(feats["historical_incident_rate"] / 4.0, 1.0), 4),
+                    "time_safety": round(1.0 - feats["time_risk_score"], 4),
+                    "is_night": feats["is_night"],
+                    "hour": hour,
                 },
             })
     else:

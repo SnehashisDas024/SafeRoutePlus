@@ -106,61 +106,74 @@ def time_risk_factor(hour):
     Late night (23–04) is most dangerous; midday is safest.
     """
     if 23 <= hour or hour <= 4:
-        return 0.85 + random.uniform(0, 0.15)
+        return 0.85 + random.uniform(0, 0.12)
     elif 5 <= hour <= 6:
-        return 0.45 + random.uniform(0, 0.15)
+        return 0.45 + random.uniform(0, 0.10)
     elif 7 <= hour <= 9:
-        return 0.15 + random.uniform(0, 0.10)
+        return 0.15 + random.uniform(0, 0.08)
     elif 10 <= hour <= 16:
-        return 0.10 + random.uniform(0, 0.10)
+        return 0.10 + random.uniform(0, 0.08)
     elif 17 <= hour <= 19:
-        return 0.20 + random.uniform(0, 0.10)
+        return 0.20 + random.uniform(0, 0.08)
     else:  # 20–22
-        return 0.50 + random.uniform(0, 0.20)
+        return 0.50 + random.uniform(0, 0.15)
 
 
 def generate_features_for_cell(lat, lon, hour):
-    """Generate realistic 6-feature vector for a cell at a given hour."""
+    """Generate realistic feature vector for a cell at a given hour."""
     danger = hotspot_danger(lat, lon)
     safe = safe_zone_bonus(lat, lon)
     time_risk = time_risk_factor(hour)
     police_d = nearest_police_dist(lat, lon)
 
-    # 1. Street light coverage — lower at night edges of city, higher in centre
-    base_light = 0.75 - danger * 0.3 + safe * 0.2
-    if 18 <= hour or hour <= 5:
-        base_light -= 0.1  # some lights out at night
-    street_light = max(0, min(1, base_light + random.gauss(0, 0.08)))
-
-    # 2. Police distance (already computed)
-    police_dist_m = police_d + random.gauss(0, 200)
-    police_dist_m = max(50, police_dist_m)
-
-    # 3. Crowd density — varies by time
-    if 8 <= hour <= 10 or 17 <= hour <= 20:
-        base_crowd = 0.7 + safe * 0.1 + danger * 0.1
-    elif 11 <= hour <= 16:
-        base_crowd = 0.5 + safe * 0.1
-    elif 22 <= hour or hour <= 5:
-        base_crowd = 0.1 + danger * 0.05
+    # Night indicator: 1.0 late night, 0.5 twilight/dawn, 0.0 daytime
+    if 21 <= hour or hour <= 4:
+        is_night = 1.0
+    elif (18 <= hour <= 20) or (5 <= hour <= 6):
+        is_night = 0.5
     else:
-        base_crowd = 0.3
-    crowd_density = max(0, min(1, base_crowd + random.gauss(0, 0.1)))
+        is_night = 0.0
+
+    # 1. Street light coverage:
+    # In daylight, ambient light is natural; at night streetlights matter critically.
+    # Outskirts or high danger spots suffer more broken/missing lights at night.
+    base_light = 0.75 - danger * 0.35 + safe * 0.25
+    if is_night > 0:
+        base_light -= 0.18 * (1.0 - safe * 0.5)  # Outskirts get darker at night
+    street_light = max(0.05, min(1.0, base_light + random.gauss(0, 0.06)))
+
+    # 2. Police distance
+    police_dist_m = police_d + random.gauss(0, 150)
+    police_dist_m = max(50.0, police_dist_m)
+
+    # 3. Crowd density — heavily varies by time
+    if 8 <= hour <= 10 or 17 <= hour <= 20:
+        base_crowd = 0.75 + safe * 0.1 + danger * 0.05
+    elif 11 <= hour <= 16:
+        base_crowd = 0.55 + safe * 0.1
+    elif 22 <= hour or hour <= 4:
+        base_crowd = 0.08 + danger * 0.04
+    elif 5 <= hour <= 7:
+        base_crowd = 0.25 + safe * 0.05
+    else:  # 21-22
+        base_crowd = 0.35
+    crowd_density = max(0.02, min(0.98, base_crowd + random.gauss(0, 0.06)))
 
     # 4. Road quality
     base_road = 0.6 + safe * 0.3 - danger * 0.15
-    road_quality = max(0, min(1, base_road + random.gauss(0, 0.08)))
+    road_quality = max(0.1, min(1.0, base_road + random.gauss(0, 0.06)))
 
     # 5. CCTV coverage
     base_cctv = 0.3 + safe * 0.5 - danger * 0.1
     if police_d < 500:
-        base_cctv += 0.15
-    cctv_coverage = max(0, min(1, base_cctv + random.gauss(0, 0.07)))
+        base_cctv += 0.20
+    cctv_coverage = max(0.05, min(1.0, base_cctv + random.gauss(0, 0.05)))
 
     # 6. Historical incident rate (per 1000 sq.m per month)
-    base_incident = 0.5 + danger * 3.0 - safe * 0.3
-    base_incident *= (0.5 + time_risk)
-    incident_rate = max(0, base_incident + random.gauss(0, 0.3))
+    # Incidents increase dramatically at night in danger spots
+    base_incident = 0.4 + danger * 3.2 - safe * 0.35
+    base_incident = max(0.1, base_incident) * (0.4 + 1.3 * time_risk)
+    incident_rate = max(0.0, base_incident + random.gauss(0, 0.25))
 
     return {
         "street_light_coverage": round(street_light, 4),
@@ -169,22 +182,19 @@ def generate_features_for_cell(lat, lon, hour):
         "road_quality": round(road_quality, 4),
         "cctv_coverage": round(cctv_coverage, 4),
         "historical_incident_rate": round(incident_rate, 4),
+        "hour": hour,
+        "is_night": is_night,
+        "time_risk_score": round(time_risk, 4),
     }
 
 
 def compute_safety_score(features, hour):
     """
-    Ground-truth safety score from features.
-
-    Formula (weights reflect domain intuition):
-      safety = 0.25 * street_light
-             + 0.15 * (1 - clamp(police_dist / 5000, 0, 1))
-             + 0.15 * crowd_density
-             + 0.10 * road_quality
-             + 0.15 * cctv_coverage
-             + 0.20 * (1 - clamp(incident_rate / 4.0, 0, 1))
-
-    Then add small gaussian noise to simulate labelling imprecision.
+    Ground-truth safety score from features and time parameters.
+    Models strong time dependencies:
+      - Midday: baseline safety boost due to daytime visibility and activity.
+      - Late night: baseline penalty + compounded hazard on unlit/isolated streets.
+      - Well-lit, CCTV-monitored, police-proximate avenues hold high safety even at night.
     """
     sl = features["street_light_coverage"]
     pd = min(features["police_station_dist_m"] / 5000.0, 1.0)
@@ -192,23 +202,50 @@ def compute_safety_score(features, hour):
     rq = features["road_quality"]
     cc = features["cctv_coverage"]
     ir = min(features["historical_incident_rate"] / 4.0, 1.0)
+    time_risk = features["time_risk_score"]
+    is_night = features["is_night"]
 
-    raw = (
-        0.25 * sl +
-        0.15 * (1 - pd) +
-        0.15 * cd +
+    # Base infrastructure safety
+    base_infra = (
+        0.20 * sl +
+        0.15 * (1.0 - pd) +
+        0.12 * cd +
         0.10 * rq +
         0.15 * cc +
-        0.20 * (1 - ir)
+        0.15 * (1.0 - ir)
     )
-    noisy = raw + random.gauss(0, 0.03)
-    return round(max(0.0, min(1.0, noisy)), 4)
+
+    # Time effect:
+    # Daytime (low risk) gives up to +0.08 bonus; Late night gives up to -0.18 penalty
+    time_delta = 0.12 * (0.35 - time_risk)
+
+    # Darkness penalty: Poor lighting at night severely amplifies risk
+    if is_night > 0.2 and sl < 0.60:
+        dark_penalty = -0.16 * is_night * (1.0 - sl)
+    else:
+        dark_penalty = 0.0
+
+    # Isolation penalty: Empty streets at night far from police
+    if is_night > 0.2 and cd < 0.25:
+        isolation_penalty = -0.12 * is_night * (1.0 - cd) * pd
+    else:
+        isolation_penalty = 0.0
+
+    # Safe sanctuary bonus: High CCTV + close police sustains high safety even at night
+    if cc > 0.65 and pd < 0.25:
+        safe_haven_bonus = 0.08 * is_night
+    else:
+        safe_haven_bonus = 0.0
+
+    raw = base_infra + time_delta + dark_penalty + isolation_penalty + safe_haven_bonus
+    noisy = raw + random.gauss(0, 0.02)
+    return round(max(0.05, min(0.98, noisy)), 4)
 
 
-def generate_dataset(num_cells=600, hours_per_cell=8):
+def generate_dataset(num_cells=600, hours_per_cell=12):
     """
     Generate the full training CSV.
-    num_cells * hours_per_cell = total samples  (default 600×8 = 4800)
+    num_cells * hours_per_cell = total samples  (default 600×12 = 7200)
     """
     random.seed(42)
 
@@ -228,7 +265,7 @@ def generate_dataset(num_cells=600, hours_per_cell=8):
     rows = []
     for cell in cells:
         clat, clon = h3.cell_to_latlng(cell)
-        # Pick a random subset of hours to keep data diverse
+        # Pick a random subset of hours covering day, evening, and night
         sampled_hours = sorted(random.sample(range(24), hours_per_cell))
         for hour in sampled_hours:
             dow = random.randint(0, 6)
@@ -254,7 +291,8 @@ def generate_dataset(num_cells=600, hours_per_cell=8):
         "h3_index", "hour", "dow", "lat", "lon",
         "street_light_coverage", "police_station_dist_m",
         "crowd_density", "road_quality", "cctv_coverage",
-        "historical_incident_rate", "safety_score",
+        "historical_incident_rate", "is_night", "time_risk_score",
+        "safety_score",
     ]
     with open(out_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
