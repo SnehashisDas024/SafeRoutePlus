@@ -47,3 +47,4 @@ mobile/node_modules/
 mobile/.expo/
 
 *.txt
+!requirements.txt
