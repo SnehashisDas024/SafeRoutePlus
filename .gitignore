@@ -1,0 +1,49 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Expo / React Native
+.expo/
+dist/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Android/iOS builds
+android/app/build/
+ios/build/
+ios/Pods/
+ios/Index/
+
+# Subprojects
+dashboard/dist/
+dashboard/node_modules/
+mobile/node_modules/
+mobile/.expo/
+
+*.txt
