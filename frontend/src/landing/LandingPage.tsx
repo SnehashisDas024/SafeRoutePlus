@@ -30,7 +30,7 @@ export default function LandingPage() {
     <nav className="landing-nav" aria-label="Main navigation">
       <Brand />
       <div className="landing-nav-links"><a href="#features">Features</a><a href="#how-it-works">How It Works</a><a href="#safety">Safety</a><a href="#contact">Contact</a></div>
-      <Link className="landing-button landing-button--small" to="/plan">Get Started <LandingIcon name="arrow" size={17} /></Link>
+      <Link className="landing-button landing-button--small" to="/signup">Get Started <LandingIcon name="arrow" size={17} /></Link>
     </nav>
 
     <section className="landing-hero" aria-labelledby="landing-title">
@@ -39,7 +39,7 @@ export default function LandingPage() {
         <h1 id="landing-title">Safety that moves <em>with you</em></h1>
         <p className="landing-lede">Feel more confident at every turn with thoughtful route guidance and quiet support that travels with you.</p>
         <div className="landing-actions">
-          <Link className="landing-button" to="/plan"><LandingIcon name="route" size={20} />Plan My Safe Route</Link>
+          <Link className="landing-button" to="/signup"><LandingIcon name="route" size={20} />Plan My Safe Route</Link>
           <a className="landing-button landing-button--secondary" href="#how-it-works"><LandingIcon name="play" size={19} />See How It Works</a>
         </div>
         <p className="landing-journeys"><span><LandingIcon name="check" size={15} /></span><b>10,000+</b> journeys protected with care</p>

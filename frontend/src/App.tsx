@@ -1,6 +1,8 @@
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import LandingPage from './landing/LandingPage'
+import LoginScreen from './screens/LoginScreen'
+import SignupScreen from './screens/SignupScreen'
 import DashboardScreen from './screens/DashboardScreen'
 import PlanScreen from './screens/PlanScreen'
 import RouteCompareScreen from './screens/RouteCompareScreen'
@@ -17,6 +19,9 @@ export default function App() {
     <Routes>
       <Route path="/share/:token" element={<LiveShareScreen />} />
       <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<LoginScreen />} />
+      <Route path="/signup" element={<SignupScreen />} />
+
       <Route path="/landing" element={<LandingPage />} />
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<DashboardScreen />} />
