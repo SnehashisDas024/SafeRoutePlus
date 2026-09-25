@@ -161,7 +161,7 @@ export default function PlanScreen() {
       try {
         const center = MAP_DEFAULTS.center;
         const r = await fetch(`${BASE_URL}/reports/community/nearby?lat=${center[0]}&lon=${center[1]}`); const res = await r.json()
-        setCommunityReports(res)
+        setCommunityReports(Array.isArray(res) ? res : [])
       } catch (e) {}
     }
     fetchReports()
@@ -349,7 +349,7 @@ export default function PlanScreen() {
             onSuccess={() => {
               setReportModal(null)
               // Refresh pins
-              fetch(`${BASE_URL}/reports/community/nearby?lat=${MAP_DEFAULTS.center[0]}&lon=${MAP_DEFAULTS.center[1]}`).then(r => r.json()).then(setCommunityReports).catch(()=>{})
+              fetch(`${BASE_URL}/reports/community/nearby?lat=${MAP_DEFAULTS.center[0]}&lon=${MAP_DEFAULTS.center[1]}`).then(r => r.json()).then(r => setCommunityReports(Array.isArray(r) ? r : [])).catch(()=>{})
             }} 
           />
         )}
