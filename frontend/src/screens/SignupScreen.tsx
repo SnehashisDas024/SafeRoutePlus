@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { IconShield } from '../components/Icons'
+import { BASE_URL } from '../services/config'
 
 export default function SignupScreen() {
   const navigate = useNavigate()
@@ -15,7 +16,7 @@ export default function SignupScreen() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('http://localhost:8000/auth/signup', {
+      const res = await fetch(`${BASE_URL}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password })

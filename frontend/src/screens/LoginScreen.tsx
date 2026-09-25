@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { IconShield } from '../components/Icons'
+import { BASE_URL } from '../services/config'
 
 export default function LoginScreen() {
   const navigate = useNavigate()
@@ -14,7 +15,7 @@ export default function LoginScreen() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('http://localhost:8000/auth/login', {
+      const res = await fetch(`${BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })

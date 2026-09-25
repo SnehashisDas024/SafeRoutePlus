@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import uuid
 import jwt
 from datetime import datetime, timedelta
-from passlib.context import CryptContext
+import bcrypt
 
 from app.models.database import get_db
 from app.models.schema import User
@@ -12,7 +12,7 @@ from app.config import settings
 
 router = APIRouter(tags=["Auth"])
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 
 class SignupRequest(BaseModel):
     name: str
@@ -36,7 +36,7 @@ def signup(req: SignupRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
     
     user_id = str(uuid.uuid4())
-    hashed_password = pwd_context.hash(req.password)
+    hashed_password = bcrypt.hashpw(req.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     
     new_user = User(
         id=user_id,
@@ -57,7 +57,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     if not user or not user.password_hash:
         raise HTTPException(status_code=401, detail="Invalid email or password")
         
-    if not pwd_context.verify(req.password, user.password_hash):
+    if not bcrypt.checkpw(req.password.encode('utf-8'), user.password_hash.encode('utf-8')):
         raise HTTPException(status_code=401, detail="Invalid email or password")
         
     token = create_access_token({"sub": user.id})
