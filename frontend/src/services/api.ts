@@ -31,7 +31,7 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: AUTH_TOKEN,
+        Authorization: `Bearer ${localStorage.getItem('authToken') || AUTH_TOKEN}`,
         ...options.headers,
       },
     })
