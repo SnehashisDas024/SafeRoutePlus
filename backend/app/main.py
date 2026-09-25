@@ -44,8 +44,10 @@ app.add_middleware(
 )
 
 from app.api import routes_plan, trips, sos, voice, ws_stream, contacts, reports, tags
+from app.api import safe_routes
 
 app.include_router(routes_plan.router)
+app.include_router(safe_routes.router)
 app.include_router(trips.router)
 app.include_router(sos.router)
 app.include_router(voice.router)

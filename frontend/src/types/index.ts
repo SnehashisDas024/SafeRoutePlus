@@ -36,6 +36,28 @@ export interface RoutePlanRequest {
   depart_at: string
 }
 
+export interface ScoredRouteSegment {
+  start: [number, number]
+  end: [number, number]
+  distance: number
+  score: number
+  confidence: 'high' | 'estimated'
+  factors: Record<string, number>
+}
+
+export interface ScoredRoute {
+  route_index: number
+  geometry: { type: string; coordinates: [number, number][] }
+  safety_score: number
+  worst_segment_score: number
+  mean_segment_score: number
+  total_distance_m: number
+  total_time_sec: number
+  is_safest: boolean
+  segments: ScoredRouteSegment[]
+  segment_colors: string[]
+}
+
 export interface TripStartRequest {
   origin: [number, number]
   destination: [number, number]
@@ -114,7 +136,7 @@ export interface WSMessage {
 }
 
 export interface PlanNavState {
-  routes: RouteCandidate[]
+  routes: ScoredRoute[]
   origin: [number, number]
   destination: [number, number]
   mode: 'walk' | 'drive'

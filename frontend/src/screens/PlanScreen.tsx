@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { planRoute } from '../services/api'
+import { safePlanRoute } from '../services/api'
 import { useLocation } from '../hooks/useLocation'
 import { MAP_DEFAULTS, KOLKATA_PRESETS } from '../services/config'
 import { IconPin, IconSatellite, IconWalk, IconCar, IconSpark, IconShield, IconCheck } from '../components/Icons'
 import PlaceAutocomplete from '../components/PlaceAutocomplete'
 import type { LeafletMouseEvent } from 'leaflet'
-import type { RouteCandidate, PlanNavState } from '../types'
+import type { ScoredRoute, PlanNavState } from '../types'
 
 const INK = '#1E4E6E'
 
@@ -124,7 +124,7 @@ export default function PlanScreen() {
     setLoading(true)
     setError('')
     try {
-      const routes: RouteCandidate[] = await planRoute({
+      const routes: ScoredRoute[] = await safePlanRoute({
         origin,
         destination,
         mode,

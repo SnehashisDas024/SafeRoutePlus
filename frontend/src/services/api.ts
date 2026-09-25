@@ -2,6 +2,7 @@ import { BASE_URL, AUTH_TOKEN } from './config'
 import type {
   RoutePlanRequest,
   RouteCandidate,
+  ScoredRoute,
   TripStartRequest,
   TripStartResponse,
   EscalationState,
@@ -53,6 +54,10 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
 // Routes
 export const planRoute = (req: RoutePlanRequest): Promise<RouteCandidate[]> =>
   fetchApi<RouteCandidate[]>('/routes/plan', { method: 'POST', body: JSON.stringify(req) })
+
+// ML-powered route planning with safety scores
+export const safePlanRoute = (req: RoutePlanRequest): Promise<ScoredRoute[]> =>
+  fetchApi<ScoredRoute[]>('/routes/safe-plan', { method: 'POST', body: JSON.stringify(req) })
 
 // Trips
 export const startTrip = (data: TripStartRequest): Promise<TripStartResponse> =>
