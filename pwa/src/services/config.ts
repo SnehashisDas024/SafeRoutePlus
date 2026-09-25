@@ -8,8 +8,11 @@ export const APP_NAME = import.meta.env.VITE_APP_NAME || 'SafeRoute+'
 export const ENDPOINTS = {
   routes: {
     plan: '/routes/plan',
+    history: '/routes/history',
+    frequent: '/routes/history/frequent',
   },
   trips: {
+
     start: '/trips/start',
     stream: (id: string) => `/trips/${id}/stream`,
     escalation: (id: string) => `/trips/${id}/escalation`,

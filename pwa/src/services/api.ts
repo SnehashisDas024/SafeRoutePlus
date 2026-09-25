@@ -2,7 +2,9 @@ import { BASE_URL, ENDPOINTS } from './config'
 import type {
   RoutePlanRequest,
   RouteCandidate,
+  RouteHistoryItem,
   TripStartRequest,
+
   TripStartResponse,
   EscalationState,
   Trip,
@@ -88,6 +90,13 @@ export const planRoute = (req: RoutePlanRequest): Promise<RouteCandidate[]> =>
     method: 'POST',
     body: JSON.stringify(req),
   })
+
+export const getRecentRoutes = (limit: number = 10): Promise<RouteHistoryItem[]> =>
+  fetchApi<RouteHistoryItem[]>(`${ENDPOINTS.routes.history}?limit=${limit}`)
+
+export const getFrequentRoutes = (limit: number = 10): Promise<RouteHistoryItem[]> =>
+  fetchApi<RouteHistoryItem[]>(`${ENDPOINTS.routes.frequent}?limit=${limit}`)
+
 
 // Trips
 export const startTrip = (data: TripStartRequest): Promise<TripStartResponse> =>

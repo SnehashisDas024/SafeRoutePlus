@@ -2,6 +2,7 @@ import { BASE_URL, AUTH_TOKEN } from './config'
 import type {
   RoutePlanRequest,
   RouteCandidate,
+  RouteHistoryItem,
   TripStartRequest,
   TripStartResponse,
   EscalationState,
@@ -11,6 +12,7 @@ import type {
   ReportPayload,
   VoiceConfig,
 } from '../types'
+
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -53,6 +55,13 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
 // Routes
 export const planRoute = (req: RoutePlanRequest): Promise<RouteCandidate[]> =>
   fetchApi<RouteCandidate[]>('/routes/plan', { method: 'POST', body: JSON.stringify(req) })
+
+export const getRecentRoutes = (limit = 10): Promise<RouteHistoryItem[]> =>
+  fetchApi<RouteHistoryItem[]>(`/routes/history?limit=${limit}`)
+
+export const getFrequentRoutes = (limit = 10): Promise<RouteHistoryItem[]> =>
+  fetchApi<RouteHistoryItem[]>(`/routes/history/frequent?limit=${limit}`)
+
 
 // Trips
 export const startTrip = (data: TripStartRequest): Promise<TripStartResponse> =>
