@@ -1,0 +1,20 @@
+{
+  "name": "voice_duress",
+  "description": "Normal trip, then duress word spoken (simulated via voice-event API)",
+  "points": [
+    {"lat": 22.5700, "lon": 88.3600, "speed": 1.2, "accuracy": 10.0},
+    {"lat": 22.5710, "lon": 88.3610, "speed": 1.3, "accuracy": 8.0},
+    {"lat": 22.5720, "lon": 88.3620, "speed": 1.2, "accuracy": 9.0},
+    {"lat": 22.5730, "lon": 88.3630, "speed": 1.1, "accuracy": 7.0},
+    {"lat": 22.5740, "lon": 88.3640, "speed": 1.2, "accuracy": 10.0},
+    {"lat": 22.5750, "lon": 88.3650, "speed": 1.3, "accuracy": 8.0},
+    {"lat": 22.5760, "lon": 88.3660, "speed": 1.2, "accuracy": 9.0},
+    {"lat": 22.5770, "lon": 88.3670, "speed": 1.1, "accuracy": 7.0},
+    {"lat": 22.5780, "lon": 88.3680, "speed": 1.2, "accuracy": 10.0},
+    {"lat": 22.5790, "lon": 88.3690, "speed": 1.3, "accuracy": 8.0}
+  ],
+  "interval_sec": 2,
+  "voice_events": [
+    {"at_ping": 5, "kind": "duress_word", "phrase_hash": "duress123", "confidence": 0.9}
+  ]
+}
