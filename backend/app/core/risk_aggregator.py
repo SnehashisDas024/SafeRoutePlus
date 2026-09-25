@@ -2,6 +2,10 @@
 # Used by both the scheduled aggregator worker and ML pipeline
 
 import h3
+from datetime import datetime
+import math
+from app.models.schema import UserTrust
+
 import random
 from collections import defaultdict
 from typing import Dict, List, Tuple, Any
@@ -52,10 +56,18 @@ def compute_incident_risk(db: Session) -> Dict[Tuple[str, int, int], float]:
     return {k: sum(v) / len(v) for k, v in incident_data.items()}
 
 
-def compute_report_risk(db: Session) -> Dict[Tuple[str, int, int], float]:
-    """Compute average risk per (h3, hour, dow) from user reports."""
+def compute_report_risk(db: Session) -> Dict[Tuple[str, int, int], Dict[str, Any]]:
+    """Compute average risk per (h3, hour, dow) from user reports with trust and decay."""
     reports = db.query(Report).all()
-    report_data = defaultdict(list)
+    
+    # Pre-fetch user trust scores
+    user_trusts = {ut.user_id: ut.trust_score for ut in db.query(UserTrust).all()}
+    
+    # We will accumulate weighted risks and track unique users per cell
+    # report_data[(h3, hour, dow)] = {"weighted_sum": 0, "weight_sum": 0, "users": set()}
+    report_data = defaultdict(lambda: {"weighted_sum": 0.0, "weight_sum": 0.0, "users": set(), "count": 0})
+    
+    now = datetime.utcnow()
     
     for rep in reports:
         h3_idx = rep.h3_index
@@ -66,9 +78,45 @@ def compute_report_risk(db: Session) -> Dict[Tuple[str, int, int], float]:
         tag_risk = sum(TAG_RISK.get(tag, 0) for tag in (rep.tags or []))
         total_risk = min(1.0, base_risk + tag_risk)
         
-        report_data[(h3_idx, hour, dow)].append(total_risk)
-    
-    return {k: sum(v) / len(v) for k, v in report_data.items()}
+        # Calculate weight
+        trust_score = user_trusts.get(rep.user_id, 1.0) if rep.user_id else 1.0
+        
+        # Recency decay (half-life ~ 30 days)
+        age_days = (now - rep.ts).total_seconds() / (24 * 3600)
+        decay = math.exp(-0.693 * age_days / 30.0)
+        
+        weight = 1.0 * trust_score * decay
+        
+        # If community report, apply heavily damped weight until corroborated
+        # We will handle the damping at the aggregation level per cell if users < 2
+        # For now just accumulate
+        report_data[(h3_idx, hour, dow)]["weighted_sum"] += total_risk * weight
+        report_data[(h3_idx, hour, dow)]["weight_sum"] += weight
+        if rep.user_id:
+            report_data[(h3_idx, hour, dow)]["users"].add(rep.user_id)
+        report_data[(h3_idx, hour, dow)]["count"] += 1
+
+    # Finalize scores
+    final_data = {}
+    for key, data in report_data.items():
+        if data["weight_sum"] > 0:
+            avg_risk = data["weighted_sum"] / data["weight_sum"]
+        else:
+            avg_risk = 0.5
+            
+        # Damping: if < 2 independent users, damp the shift toward 0.5 (neutral)
+        num_users = len(data["users"])
+        if num_users < 2:
+            # Shift back 70% toward 0.5
+            avg_risk = 0.5 + 0.3 * (avg_risk - 0.5)
+            
+        final_data[key] = {
+            "risk": avg_risk,
+            "num_users": num_users,
+            "count": data["count"]
+        }
+        
+    return final_data
 
 
 def compute_passive_risk(cells_with_data: set) -> Dict[Tuple[str, int, int], float]:
@@ -116,11 +164,11 @@ def compute_passive_risk(cells_with_data: set) -> Dict[Tuple[str, int, int], flo
 
 def combine_sources(
     incident_risk: Dict[Tuple[str, int, int], float],
-    report_risk: Dict[Tuple[str, int, int], float],
+    report_risk: Dict[Tuple[str, int, int], Dict[str, Any]],
     passive_risk: Dict[Tuple[str, int, int], float],
 ) -> Dict[Tuple[str, int, int], Dict[str, Any]]:
     """Combine three data sources with weights."""
-    combined = defaultdict(lambda: {"score": 0.0, "weight": 0.0, "samples": 0})
+    combined = defaultdict(lambda: {"score": 0.0, "weight": 0.0, "samples": 0, "community_verified": False})
     
     # Incidents
     for key, risk in incident_risk.items():
@@ -129,10 +177,12 @@ def combine_sources(
         combined[key]["samples"] += 1
     
     # Reports
-    for key, risk in report_risk.items():
-        combined[key]["score"] += risk * WEIGHT_REPORTS
+    for key, data in report_risk.items():
+        combined[key]["score"] += data["risk"] * WEIGHT_REPORTS
         combined[key]["weight"] += WEIGHT_REPORTS
-        combined[key]["samples"] += 1
+        combined[key]["samples"] += data["count"]
+        if data["num_users"] >= 2:
+            combined[key]["community_verified"] = True
     
     # Passive
     for key, risk in passive_risk.items():
@@ -148,10 +198,12 @@ def combine_sources(
             data["score"] = 0.5
         
         # Confidence based on sample count and data source diversity
-        if data["samples"] >= MIN_SAMPLES_HIGH_CONFIDENCE or data["weight"] >= 0.5:
+        if data.get("community_verified"):
+            data["confidence"] = "community-verified"
+        elif data["samples"] >= MIN_SAMPLES_HIGH_CONFIDENCE or data["weight"] >= 0.5:
             data["confidence"] = "high"
         else:
-            data["confidence"] = "estimated"
+            data["confidence"] = "low"
     
     return combined
 
@@ -170,9 +222,29 @@ def upsert_risk_cells(db: Session, combined: Dict[Tuple[str, int, int], Dict[str
         )
         batch.append(cell)
     
-    # Delete existing and re-insert (full rebuild)
-    db.query(RiskCell).delete()
-    db.bulk_save_objects(batch)
+    # UPSERT strategy to avoid duplicate key errors in Postgres
+    from sqlalchemy.dialects.postgresql import insert
+    
+    # Execute insert with on_conflict_do_update
+    stmt = insert(RiskCell).values([{
+        "h3_index": c.h3_index,
+        "hour": c.hour,
+        "dow": c.dow,
+        "risk_score": c.risk_score,
+        "confidence": c.confidence,
+        "sample_count": c.sample_count
+    } for c in batch])
+    
+    stmt = stmt.on_conflict_do_update(
+        index_elements=['h3_index', 'hour', 'dow'],
+        set_={
+            "risk_score": stmt.excluded.risk_score,
+            "confidence": stmt.excluded.confidence,
+            "sample_count": stmt.excluded.sample_count
+        }
+    )
+    
+    db.execute(stmt)
     db.commit()
     
     return len(batch)
@@ -216,15 +288,16 @@ def neighbour_fill(db: Session) -> int:
                     total_weight = sum(w for _, w, _ in valid_neighbours)
                     avg_score = sum(s * w for s, w, _ in valid_neighbours) / total_weight
                     
-                    new_cell = RiskCell(
-                        h3_index=cell,
-                        hour=hour,
-                        dow=dow,
-                        risk_score=round(avg_score, 3),
-                        confidence="estimated",
-                        sample_count=0,
-                    )
-                    db.add(new_cell)
+                    from sqlalchemy.dialects.postgresql import insert
+                    stmt = insert(RiskCell).values({
+                        "h3_index": cell,
+                        "hour": hour,
+                        "dow": dow,
+                        "risk_score": round(avg_score, 3),
+                        "confidence": "estimated",
+                        "sample_count": 0
+                    }).on_conflict_do_nothing(index_elements=['h3_index', 'hour', 'dow'])
+                    db.execute(stmt)
                     filled += 1
     
     db.commit()

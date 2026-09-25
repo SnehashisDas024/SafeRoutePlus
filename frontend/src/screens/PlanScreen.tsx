@@ -1,11 +1,13 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { MapContainer, TileLayer, Marker, Polyline, useMapEvents, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Polyline, useMapEvents, useMap , Tooltip} from 'react-leaflet'
 import L from 'leaflet'
 import { planRoute, safePlanRoute, getRecentRoutes, getFrequentRoutes } from '../services/api'
 import { useLocation } from '../hooks/useLocation'
 import { MAP_DEFAULTS, KOLKATA_PRESETS } from '../services/config'
 import { IconPin, IconSatellite, IconWalk, IconCar, IconSpark, IconShield, IconCheck } from '../components/Icons'
+import CommunityReportModal from '../components/CommunityReportModal'
+import { BASE_URL } from '../services/api'
 import PlaceAutocomplete from '../components/PlaceAutocomplete'
 import RouteHistoryList from '../components/RouteHistoryList'
 import type { LeafletMouseEvent } from 'leaflet'
@@ -96,6 +98,16 @@ function MapController({
 }
 
 
+
+const MapEventsWrapper = ({ onLongPress }: { onLongPress: (latlng: any) => void }) => {
+  useMapEvents({
+    contextmenu(e) {
+      onLongPress(e.latlng)
+    }
+  })
+  return null
+}
+
 const MapInvalidator = () => {
   const map = useMap()
   useEffect(() => {
@@ -139,6 +151,22 @@ export default function PlanScreen() {
     return Array.from(unique.entries()).map(([name, coords]) => ({ name, coords })).slice(0, 5)
   }, [recentRoutes])
   const [historyLoading, setHistoryLoading] = useState(false)
+  
+  const [reportModal, setReportModal] = useState<{lat: number, lon: number} | null>(null)
+  const [communityReports, setCommunityReports] = useState<any[]>([])
+
+  useEffect(() => {
+    // Fetch nearby community reports occasionally or on mount
+    const fetchReports = async () => {
+      try {
+        const center = MAP_DEFAULTS.center;
+        const r = await fetch(`${BASE_URL}/reports/community/nearby?lat=${center[0]}&lon=${center[1]}`); const res = await r.json()
+        setCommunityReports(res)
+      } catch (e) {}
+    }
+    fetchReports()
+  }, [])
+
   const [mode, setMode] = useState<'walk' | 'drive' | 'any'>('any')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -284,6 +312,18 @@ export default function PlanScreen() {
             style={{ height: '100%', width: '100%', minHeight: 460 }}
           >
             <MapInvalidator />
+            <MapEventsWrapper onLongPress={(ll) => setReportModal({ lat: ll.lat, lon: ll.lng })} />
+            {communityReports.map(r => (
+              <Marker key={r.id} position={[r.lat, r.lon]}>
+                <Tooltip direction="top">
+                  <b>{r.rating} {r.rating === '🔴' ? 'UNSAFE' : r.rating === '🟢' ? 'SAFE' : 'OKAY'}</b><br/>
+                  {r.tags && r.tags.length > 0 && <span style={{fontSize: 11, color: '#666'}}>{r.tags.join(', ')}<br/></span>}
+                  {r.note && <span style={{fontSize: 12}}>"{r.note}"<br/></span>}
+                  <span style={{fontSize: 10, color: '#aaa'}}>{new Date(r.ts).toLocaleString()}</span>
+                </Tooltip>
+              </Marker>
+            ))}
+
               <TileLayer url={MAP_DEFAULTS.tileUrl} attribution={MAP_DEFAULTS.attribution} />
             <ClickCatcher onClick={handleMapClick} />
             <MapController origin={origin} destination={destination} />
@@ -300,6 +340,31 @@ export default function PlanScreen() {
 
             {currentLoc && <Marker position={[currentLoc.lat, currentLoc.lon]} icon={myLocPin} />}
           </MapContainer>
+
+        {reportModal && (
+          <CommunityReportModal 
+            lat={reportModal.lat} 
+            lon={reportModal.lon} 
+            onClose={() => setReportModal(null)} 
+            onSuccess={() => {
+              setReportModal(null)
+              // Refresh pins
+              fetch(`${BASE_URL}/reports/community/nearby?lat=${MAP_DEFAULTS.center[0]}&lon=${MAP_DEFAULTS.center[1]}`).then(r => r.json()).then(setCommunityReports).catch(()=>{})
+            }} 
+          />
+        )}
+
+
+          <div style={{ position: 'absolute', bottom: 20, left: 20, zIndex: 1000 }}>
+            <button 
+              className="clay-btn" 
+              style={{ background: '#fff', color: '#1E4E6E', padding: '10px 15px', borderRadius: 20, fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+              onClick={() => setReportModal({ lat: MAP_DEFAULTS.center[0], lon: MAP_DEFAULTS.center[1] })}
+            >
+              🚩 Report Area
+            </button>
+          </div>
+
 
           {/* Quick Map Overlay Indicator */}
           <div

@@ -109,11 +109,13 @@ class StaticFeature(Base):
 class Report(Base):
     __tablename__ = "reports"
     id = Column(String, primary_key=True)
-    trip_id = Column(String)
+    user_id = Column(String, nullable=True)
+    trip_id = Column(String, nullable=True)
     h3_index = Column(String)
     rating = Column(String)
     tags = Column(ARRAY(String))
     note = Column(String)
+    source = Column(String, default='trip')
     ts = Column(DateTime, default=datetime.utcnow)
 
 class Incident(Base):
@@ -204,3 +206,8 @@ class RouteHistory(Base):
     )
 
 
+
+class UserTrust(Base):
+    __tablename__ = "user_trust"
+    user_id = Column(String, primary_key=True)
+    trust_score = Column(Float, default=1.0)
