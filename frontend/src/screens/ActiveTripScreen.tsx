@@ -38,6 +38,7 @@ import CommunityReportModal from '../components/CommunityReportModal'
 import { BASE_URL } from '../services/api'
 import { Marker, Tooltip, useMapEvents } from 'react-leaflet'
 import { EscalationBanner } from '../components/ui'
+import DemoController from '../components/DemoController'
 import { IconCompass, IconPin, IconClock, IconCheck, IconSiren, IconPencil, IconLock, IconSignal, IconMap } from '../components/Icons'
 import { MAP_DEFAULTS } from '../services/config'
 import type { EscalationLevel } from '../types'
@@ -70,7 +71,7 @@ export default function ActiveTripScreen() {
   const tripId = params.tripId || localStorage.getItem('activeTripId')
 
   const { escalation, wsStatus, checkin, sos, voiceEvent, sendPing } = useTrip(tripId)
-  const { location, start } = useLocation()
+  const { location, start, setMockLocation } = useLocation()
   
   const [reportModal, setReportModal] = useState<{lat: number, lon: number} | null>(null)
   const [communityReports, setCommunityReports] = useState<any[]>([])
@@ -220,6 +221,16 @@ export default function ActiveTripScreen() {
 
   return (
     <>
+      
+      {/* Demo Panel Overlay */}
+      {setMockLocation && (
+        <DemoController 
+          activePath={activePath} 
+          setMockLocation={setMockLocation}
+          onVoiceEvent={(kind, conf) => voiceEvent(kind, conf)}
+        />
+      )}
+
       <EscalationBanner level={level} reason={escalation?.reason} />
       {reroutingMsg && (
         <div className="clay-inset mt-1" style={{ padding: 12, fontSize: 12.5, fontWeight: 700, color: '#10B981', borderLeft: '4px solid #10B981' }}>
