@@ -12,6 +12,7 @@ import ReportScreen from './screens/ReportScreen'
 import ContactsScreen from './screens/ContactsScreen'
 import VoiceSetupScreen from './screens/VoiceSetupScreen'
 import SettingsScreen from './screens/SettingsScreen'
+import ProfileScreen from './screens/ProfileScreen'
 import LiveShareScreen from './screens/LiveShareScreen'
 
 export default function App() {
@@ -33,7 +34,8 @@ export default function App() {
         <Route path="/report" element={<ReportScreen />} />
         <Route path="/contacts" element={<ContactsScreen />} />
         <Route path="/voice" element={<VoiceSetupScreen />} />
-        <Route path="/settings" element={<SettingsScreen />} />
+                <Route path="/settings" element={<SettingsScreen />} />
+        <Route path="/profile" element={<ProfileScreen />} />
       </Route>
     </Routes>
   )

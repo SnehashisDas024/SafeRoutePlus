@@ -2,7 +2,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   IconHome, IconMap, IconCompass, IconSiren, IconReport,
-  IconUsers, IconMic, IconGear, IconShield, IconMenu,
+  IconUsers, IconMic, IconGear, IconShield, IconMenu, IconUser,
 } from './Icons'
 
 const NAV_MAIN = [
@@ -14,6 +14,7 @@ const NAV_MAIN = [
 ]
 
 const NAV_SETTINGS = [
+  { to: '/profile', icon: IconUser, label: 'Profile' },
   { to: '/contacts', icon: IconUsers, label: 'Contacts' },
   { to: '/voice', icon: IconMic, label: 'Voice Words' },
   { to: '/settings', icon: IconGear, label: 'Settings' },
@@ -24,6 +25,7 @@ const BOTTOM_ITEMS = [
   { to: '/plan', icon: IconMap, label: 'Plan' },
   { to: '/sos', icon: IconSiren, label: 'SOS' },
   { to: '/trip', icon: IconCompass, label: 'Trip' },
+  { to: '/profile', icon: IconUser, label: 'Profile' },
   { to: '/contacts', icon: IconUsers, label: 'Contacts' },
 ]
 

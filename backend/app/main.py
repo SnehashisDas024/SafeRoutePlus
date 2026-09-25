@@ -45,6 +45,7 @@ app.add_middleware(
 
 from app.api import routes_plan, trips, sos, voice, ws_stream, contacts, reports, tags
 from app.api import safe_routes
+from app.api import users
 from app.api import auth
 
 app.include_router(routes_plan.router)
@@ -57,6 +58,7 @@ app.include_router(contacts.router)
 app.include_router(reports.router)
 app.include_router(tags.router)
 app.include_router(auth.router)
+app.include_router(users.router)
 
 # Top-level alias route for live-share
 from app.api.trips import get_share_trip

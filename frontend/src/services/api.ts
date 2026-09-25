@@ -124,3 +124,22 @@ export const setVoiceConfig = (c: { safe_word_hash: string; duress_word_hash: st
   fetchApi('/users/voice-config', { method: 'POST', body: JSON.stringify(c) })
 
 export { ApiError, BASE_URL }
+
+
+export async function fetchUserProfile() {
+  const token = localStorage.getItem('authToken')
+  const res = await fetch(`${BASE_URL}/users/me`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  if (!res.ok) throw new Error('Failed to fetch profile')
+  return res.json()
+}
+
+export async function fetchTripHistory() {
+  const token = localStorage.getItem('authToken')
+  const res = await fetch(`${BASE_URL}/trips`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  if (!res.ok) throw new Error('Failed to fetch history')
+  return res.json()
+}
