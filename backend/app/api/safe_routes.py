@@ -507,7 +507,7 @@ async def fetch_osrm_routes(origin, destination, mode="walk"):
     # Request up to 5 alternatives (OSRM may cap at 2-3)
     url = (f"{OSRM_PUBLIC}/route/v1/{osrm_mode}/"
            f"{origin[0]},{origin[1]};{destination[0]},{destination[1]}"
-           f"?alternatives=5&overview=full&geometries=geojson&steps=false")
+           f"?alternatives=3&overview=full&geometries=geojson&steps=false")
 
     names = [
         "Primary Direct Corridor",
@@ -539,25 +539,12 @@ async def fetch_osrm_routes(origin, destination, mode="walk"):
                         if not _is_duplicate_route(r["geometry"]["coordinates"], result):
                             result.append(candidate)
 
-                    # Fill up to 5 with distinct augmented routes
-                    aug_idx = 0
-                    max_attempts = 12  # prevent infinite loop
-                    while len(result) < 5 and aug_idx < max_attempts:
-                        aug_route = _generate_augmented_route(
-                            origin, destination,
-                            result[0]["geometry"]["coordinates"],
-                            aug_idx, mode,
-                        )
-                        if not _is_duplicate_route(aug_route["geometry"]["coordinates"], result):
-                            result.append(aug_route)
-                        aug_idx += 1
-
-                    return result[:5]
+                    return result
     except Exception as e:
         print(f"[OSRM] Fetch failed: {e}")
 
-    # Fallback: generate 5 distinct routes
-    return _generate_fallback_routes(origin, destination, mode)
+    # Return empty list if OSRM fails
+    return []
 
 
 def _generate_fallback_routes(origin, destination, mode):
@@ -725,18 +712,7 @@ async def safe_plan(req: SafePlanRequest):
     Returns 5 geometrically distinct route alternatives ranked by safety.
     Each route includes full road-following geometry and per-segment scores.
     """
-    # 1. Fetch route alternatives from OSRM
-    raw_routes = await fetch_osrm_routes(
-        list(req.origin), list(req.destination), req.mode
-    )
-
-    if not raw_routes:
-        raise HTTPException(
-            status_code=502,
-            detail="Could not fetch routes. OSRM may be unavailable."
-        )
-
-    # 2. Score each route with the ML model
+    # Determine departing hour for ML
     if req.depart_hour is not None:
         depart_hour = req.depart_hour % 24
     elif req.depart_at:
@@ -744,11 +720,40 @@ async def safe_plan(req: SafePlanRequest):
     else:
         depart_hour = datetime.now().hour
 
+    raw_routes = []
+    
+    if req.mode == "any":
+        import copy
+        # Fetch ONCE from OSRM to avoid rate limits, since OSRM public only supports driving anyway.
+        # We will simulate the multiple modes by evaluating the same geometries with different speeds.
+        base_routes = await fetch_osrm_routes(list(req.origin), list(req.destination), "drive")
+        
+        if base_routes:
+            modes = ["walk", "drive"]
+            for m in modes:
+                # duplicate the routes for each mode
+                routes_copy = copy.deepcopy(base_routes)
+                for r in routes_copy:
+                    r["name"] = f"[{m.title()}] {r.get('name', '')}"
+                    r["_calc_mode"] = m
+                raw_routes.extend(routes_copy)
+    else:
+        raw_routes = await fetch_osrm_routes(list(req.origin), list(req.destination), req.mode)
+        if raw_routes:
+            for r in raw_routes:
+                r["_calc_mode"] = req.mode
+
+    if not raw_routes:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not fetch routes. OSRM may be unavailable."
+        )
+
     time_profile = get_time_profile(depart_hour)
     scored_routes = []
 
     for idx, raw in enumerate(raw_routes):
-        result = score_route_with_ml(raw, depart_hour, req.mode)
+        result = score_route_with_ml(raw, depart_hour, raw.get("_calc_mode", "walk"))
         if result:
             scored_routes.append(ScoredRoute(
                 route_index=idx,

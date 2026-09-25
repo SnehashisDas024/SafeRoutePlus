@@ -35,7 +35,7 @@ const createPinIcon = (color: string, letter: string) => {
   return L.divIcon({
     className: 'custom-map-pin',
     html: `
-      <div style="position: relative; width: 30px; height: 38px; transform: translate(-15px, -38px); filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35));">
+      <div style="position: relative; width: 30px; height: 38px; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35));">
         <svg viewBox="0 0 32 42" width="30" height="38" fill="none">
           <path d="M16 0C7.16 0 0 7.16 0 16c0 11.5 14.5 24.8 15.1 25.4.5.5 1.3.5 1.8 0C17.5 40.8 32 27.5 32 16 32 7.16 24.84 0 16 0z" fill="${color}"/>
           <circle cx="16" cy="15" r="9" fill="#FFFFFF"/>
@@ -63,7 +63,6 @@ const createRouteBadgeIcon = (
     className: 'custom-route-badge',
     html: `
       <div style="
-        transform: translate(-50%, -50%);
         display: flex;
         align-items: center;
         gap: 5px;
@@ -181,6 +180,7 @@ export default function RouteCompareScreen() {
       })
       localStorage.setItem('activeTripId', res.trip_id)
       localStorage.setItem('activeDestination', JSON.stringify(state!.destination))
+      localStorage.setItem('activeMode', state!.mode)
       localStorage.setItem('activePath', JSON.stringify(coordinates))
       navigate('/trip')
     } catch (e) {

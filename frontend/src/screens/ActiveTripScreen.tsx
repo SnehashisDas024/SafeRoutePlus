@@ -24,7 +24,7 @@ function MapController() {
 
 import { useTrip } from '../hooks/useTrip'
 import { useLocation } from '../hooks/useLocation'
-import { getVoiceConfig } from '../services/api'
+import { getVoiceConfig, safePlanRoute } from '../services/api'
 import { startListening, stopListening, speak, isVoiceSupported } from '../services/voice'
 import { EscalationBanner } from '../components/ui'
 import { IconCompass, IconPin, IconClock, IconCheck, IconSiren, IconPencil, IconLock, IconSignal, IconMap } from '../components/Icons'
@@ -111,8 +111,48 @@ export default function ActiveTripScreen() {
   const destinationStr = localStorage.getItem('activeDestination')
   const destination: [number, number] | null = destinationStr ? JSON.parse(destinationStr) : null
 
-  const pathStr = localStorage.getItem('activePath')
-  const activePath: [number, number][] | null = pathStr ? JSON.parse(pathStr) : null
+  const [activePath, setActivePath] = useState<[number, number][] | null>(() => {
+    const pathStr = localStorage.getItem('activePath')
+    return pathStr ? JSON.parse(pathStr) : null
+  })
+  const [reroutingMsg, setReroutingMsg] = useState('')
+
+  // LIVE REROUTING: Every 60 seconds, query for the safest route from current position
+  const posRef = useRef(position)
+  useEffect(() => { posRef.current = position }, [position])
+
+  useEffect(() => {
+    if (!destination) return
+    const mode = localStorage.getItem('activeMode') || 'walk'
+    
+    const interval = setInterval(async () => {
+      const currentPos = posRef.current
+      if (!currentPos) return
+      
+      try {
+        const routes = await safePlanRoute({
+          origin: [currentPos[1], currentPos[0]], // [lon, lat]
+          destination,
+          mode,
+          depart_at: new Date().toISOString()
+        })
+        if (routes && routes.length > 0) {
+          // Pick safest:
+          const safest = routes.reduce((best, curr) => curr.safety_score > best.safety_score ? curr : best, routes[0])
+          const newCoords = safest.geometry.coordinates // [lon, lat][]
+          setActivePath(newCoords)
+          localStorage.setItem('activePath', JSON.stringify(newCoords))
+          
+          setReroutingMsg('Route updated to safer alternative!')
+          setTimeout(() => setReroutingMsg(''), 4000)
+        }
+      } catch (err) {
+        console.error('Failed to reroute', err)
+      }
+    }, 60000) // 1 minute
+    
+    return () => clearInterval(interval)
+  }, [destination])
 
   function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
     const R = 6371e3
@@ -132,6 +172,11 @@ export default function ActiveTripScreen() {
   return (
     <>
       <EscalationBanner level={level} reason={escalation?.reason} />
+      {reroutingMsg && (
+        <div className="clay-inset mt-1" style={{ padding: 12, fontSize: 12.5, fontWeight: 700, color: '#10B981', borderLeft: '4px solid #10B981' }}>
+          {reroutingMsg}
+        </div>
+      )}
       {duressSilent && (
         <div className="clay-inset mt-1" style={{ padding: 12, fontSize: 12.5, fontWeight: 700, color: 'var(--ink-soft)' }}>
           Screen kept normal by design — silent alert is active.

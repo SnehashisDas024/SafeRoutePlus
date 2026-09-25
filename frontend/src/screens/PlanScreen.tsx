@@ -17,7 +17,7 @@ const createPinIcon = (color: string, letter: string) => {
   return L.divIcon({
     className: 'custom-map-pin',
     html: `
-      <div style="position: relative; width: 32px; height: 42px; transform: translate(-16px, -42px); filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35));">
+      <div style="position: relative; width: 32px; height: 42px; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35));">
         <svg viewBox="0 0 32 42" width="32" height="42" fill="none">
           <path d="M16 0C7.16 0 0 7.16 0 16c0 11.5 14.5 24.8 15.1 25.4.5.5 1.3.5 1.8 0C17.5 40.8 32 27.5 32 16 32 7.16 24.84 0 16 0z" fill="${color}"/>
           <circle cx="16" cy="15" r="9" fill="#FFFFFF"/>
@@ -35,7 +35,7 @@ const destPin = createPinIcon('#E74C3C', 'B')
 const myLocPin = L.divIcon({
   className: 'custom-loc-pin',
   html: `
-    <div style="position: relative; width: 20px; height: 20px; transform: translate(-10px, -10px);">
+    <div style="position: relative; width: 20px; height: 20px; ">
       <div style="position: absolute; inset: -4px; border-radius: 50%; background: rgba(52, 152, 219, 0.35); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
       <div style="position: absolute; inset: 0; border-radius: 50%; background: #3498DB; border: 3px solid #FFFFFF; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>
     </div>
