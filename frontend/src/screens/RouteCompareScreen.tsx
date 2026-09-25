@@ -181,6 +181,7 @@ export default function RouteCompareScreen() {
       })
       localStorage.setItem('activeTripId', res.trip_id)
       localStorage.setItem('activeDestination', JSON.stringify(state!.destination))
+      localStorage.setItem('activePath', JSON.stringify(coordinates))
       navigate('/trip')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to start trip')
