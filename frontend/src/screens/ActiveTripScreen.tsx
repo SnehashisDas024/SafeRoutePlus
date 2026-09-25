@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { MapContainer, TileLayer, CircleMarker, useMap, Polyline } from 'react-leaflet'
 
 // Helper component to fix Leaflet map tile rendering issues on resize
-function MapController() {
+function MapController({ position }: { position: [number, number] | null }) {
   const map = useMap()
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -19,6 +19,14 @@ function MapController() {
       resizeObserver.disconnect()
     }
   }, [map])
+
+  // Pan map to current position
+  useEffect(() => {
+    if (position) {
+      map.flyTo(position, 16, { duration: 1 })
+    }
+  }, [map, position])
+  
   return null
 }
 
@@ -26,11 +34,24 @@ import { useTrip } from '../hooks/useTrip'
 import { useLocation } from '../hooks/useLocation'
 import { getVoiceConfig, safePlanRoute } from '../services/api'
 import { startListening, stopListening, speak, isVoiceSupported } from '../services/voice'
+import CommunityReportModal from '../components/CommunityReportModal'
+import { BASE_URL } from '../services/api'
+import { Marker, Tooltip, useMapEvents } from 'react-leaflet'
 import { EscalationBanner } from '../components/ui'
 import { IconCompass, IconPin, IconClock, IconCheck, IconSiren, IconPencil, IconLock, IconSignal, IconMap } from '../components/Icons'
 import { MAP_DEFAULTS } from '../services/config'
 import type { EscalationLevel } from '../types'
 
+
+
+const MapEventsWrapper = ({ onLongPress }: { onLongPress: (latlng: any) => void }) => {
+  useMapEvents({
+    contextmenu(e) {
+      onLongPress(e.latlng)
+    }
+  })
+  return null
+}
 
 const MapInvalidator = () => {
   const map = useMap()
@@ -50,6 +71,22 @@ export default function ActiveTripScreen() {
 
   const { escalation, wsStatus, checkin, sos, voiceEvent, sendPing } = useTrip(tripId)
   const { location, start } = useLocation()
+  
+  const [reportModal, setReportModal] = useState<{lat: number, lon: number} | null>(null)
+  const [communityReports, setCommunityReports] = useState<any[]>([])
+
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        const center = MAP_DEFAULTS.center;
+        const r = await fetch(`${BASE_URL}/reports/community/nearby?lat=${center[0]}&lon=${center[1]}`);
+        const res = await r.json();
+        setCommunityReports(Array.isArray(res) ? res : [])
+      } catch (e) {}
+    }
+    fetchReports()
+  }, [])
+
   const [checkinDeadline, setCheckinDeadline] = useState<number | null>(null)
   const [countdown, setCountdown] = useState(0)
   const spokenRef = useRef<EscalationLevel | null>(null)
@@ -204,10 +241,23 @@ export default function ActiveTripScreen() {
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 1.5fr) minmax(280px, 1fr)' }}>
-        <div className="clay card map-box" style={{ padding: 0, minHeight: 360 }}>
+        <div className="clay card map-box" style={{ padding: 0, minHeight: 360, position: 'relative' }}>
           <MapContainer center={MAP_DEFAULTS.center} zoom={MAP_DEFAULTS.zoom} style={{ height: '100%', width: '100%' }}>
-            <MapController />
+            <MapController position={position} />
             <MapInvalidator />
+
+            <MapEventsWrapper onLongPress={(ll) => setReportModal({ lat: ll.lat, lon: ll.lng })} />
+            {communityReports.map(r => (
+              <Marker key={r.id} position={[r.lat, r.lon]}>
+                <Tooltip direction="top">
+                  <b>{r.rating} {r.rating === '🔴' ? 'UNSAFE' : r.rating === '🟢' ? 'SAFE' : 'OKAY'}</b><br/>
+                  {r.tags && r.tags.length > 0 && <span style={{fontSize: 11, color: '#666'}}>{r.tags.join(', ')}<br/></span>}
+                  {r.note && <span style={{fontSize: 12}}>"{r.note}"<br/></span>}
+                  <span style={{fontSize: 10, color: '#aaa'}}>{new Date(r.ts).toLocaleString()}</span>
+                </Tooltip>
+              </Marker>
+            ))}
+
             <TileLayer url={MAP_DEFAULTS.tileUrl} attribution={MAP_DEFAULTS.attribution} />
             {activePath && (
               <Polyline 
@@ -218,7 +268,31 @@ export default function ActiveTripScreen() {
             {position && (
               <CircleMarker center={position} radius={10} pathOptions={{ color: '#2F7FBC', fillColor: '#6FB6E8', fillOpacity: 1, weight: 3 }} />
             )}
+          
           </MapContainer>
+
+          {reportModal && (
+            <CommunityReportModal 
+              lat={reportModal.lat} 
+              lon={reportModal.lon} 
+              onClose={() => setReportModal(null)} 
+              onSuccess={() => {
+                setReportModal(null)
+                fetch(`${BASE_URL}/reports/community/nearby?lat=${MAP_DEFAULTS.center[0]}&lon=${MAP_DEFAULTS.center[1]}`).then(r => r.json()).then(r => setCommunityReports(Array.isArray(r) ? r : [])).catch(()=>{})
+              }} 
+            />
+          )}
+
+          <div style={{ position: 'absolute', bottom: 20, left: 20, zIndex: 1000 }}>
+            <button 
+              className="clay-btn" 
+              style={{ background: '#fff', color: '#1E4E6E', padding: '10px 15px', borderRadius: 20, fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+              onClick={() => setReportModal({ lat: position ? position[0] : MAP_DEFAULTS.center[0], lon: position ? position[1] : MAP_DEFAULTS.center[1] })}
+            >
+              🚩 Report Area
+            </button>
+          </div>
+
         </div>
 
         <div>
