@@ -29,6 +29,11 @@ interface PhotonResponse {
   features: PhotonFeature[]
 }
 
+export interface RecentPlace {
+  name: string
+  coords: [number, number]
+}
+
 interface PlaceAutocompleteProps {
   value: string
   onChange: (name: string, coords: [number, number] | null) => void
@@ -36,6 +41,7 @@ interface PlaceAutocompleteProps {
   isActive?: boolean
   accentColor?: string
   onFocus?: () => void
+  recentPlaces?: RecentPlace[]
 }
 
 // Bias search results towards Kolkata
@@ -49,7 +55,20 @@ export default function PlaceAutocomplete({
   isActive = false,
   accentColor = '#27AE60',
   onFocus,
+  recentPlaces = [],
 }: PlaceAutocompleteProps) {
+
+  const mockFeature = (name: string, coords: [number, number]): PhotonFeature => ({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: coords },
+    properties: {
+      osm_id: Math.random(),
+      osm_type: 'recent',
+      name: name,
+      type: 'recent_history'
+    }
+  })
+
   const [query, setQuery] = useState(value)
   const [suggestions, setSuggestions] = useState<PhotonFeature[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
@@ -77,8 +96,13 @@ export default function PlaceAutocomplete({
 
   const fetchSuggestions = useCallback(async (q: string) => {
     if (q.trim().length < 2) {
-      setSuggestions([])
-      setShowDropdown(false)
+      if (recentPlaces && recentPlaces.length > 0) {
+        setSuggestions(recentPlaces.map(rp => mockFeature(rp.name, rp.coords)))
+        setShowDropdown(true)
+      } else {
+        setSuggestions([])
+        setShowDropdown(false)
+      }
       return
     }
     setLoading(true)
@@ -156,7 +180,12 @@ export default function PlaceAutocomplete({
           onKeyDown={handleKeyDown}
           onFocus={() => {
             onFocus?.()
-            if (suggestions.length > 0) setShowDropdown(true)
+            if (query.trim().length < 2 && recentPlaces && recentPlaces.length > 0) {
+              setSuggestions(recentPlaces.map(rp => mockFeature(rp.name, rp.coords)))
+              setShowDropdown(true)
+            } else if (suggestions.length > 0) {
+              setShowDropdown(true)
+            }
           }}
           placeholder={placeholder}
           autoComplete="off"
@@ -216,8 +245,9 @@ export default function PlaceAutocomplete({
         >
           {suggestions.map((feature, idx) => {
             const isHighlighted = idx === highlightIdx
+            const isRecent = feature.properties.type === 'recent_history'
             const mainName = formatPlaceName(feature)
-            const subText = formatSubText(feature)
+            const subText = isRecent ? 'Recent Search' : formatSubText(feature)
             return (
               <button
                 key={`${feature.properties.osm_id}-${idx}`}

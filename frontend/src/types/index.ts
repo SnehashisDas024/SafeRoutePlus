@@ -38,7 +38,7 @@ export interface RouteHistoryItem {
   id: string
   origin: RoutePointInfo
   destination: RoutePointInfo
-  mode: 'walk' | 'drive'
+  mode: 'walk' | 'drive' | 'any'
   use_count: number
   last_used_at: string
   created_at?: string
@@ -49,9 +49,10 @@ export interface RoutePlanRequest {
   destination: [number, number]
   origin_name?: string
   destination_name?: string
-  mode: 'walk' | 'drive'
+  mode: 'walk' | 'drive' | 'any'
   depart_at: string
   depart_hour?: number
+  prefetched_routes?: any[]
 }
 
 export interface ScoredRouteSegment {
@@ -163,7 +164,7 @@ export interface PlanNavState {
   routes: ScoredRoute[]
   origin: [number, number]
   destination: [number, number]
-  mode: 'walk' | 'drive'
+  mode: 'walk' | 'drive' | 'any'
   depart_hour?: number
   depart_time_str?: string
   time_category?: string

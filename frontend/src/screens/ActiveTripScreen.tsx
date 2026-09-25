@@ -31,6 +31,18 @@ import { IconCompass, IconPin, IconClock, IconCheck, IconSiren, IconPencil, Icon
 import { MAP_DEFAULTS } from '../services/config'
 import type { EscalationLevel } from '../types'
 
+
+const MapInvalidator = () => {
+  const map = useMap()
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize()
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [map])
+  return null
+}
+
 export default function ActiveTripScreen() {
   const params = useParams<{ tripId?: string }>()
   const navigate = useNavigate()
@@ -123,7 +135,7 @@ export default function ActiveTripScreen() {
 
   useEffect(() => {
     if (!destination) return
-    const mode = localStorage.getItem('activeMode') || 'walk'
+    const mode = (localStorage.getItem('activeMode') as 'walk' | 'drive' | 'any') || 'walk'
     
     const interval = setInterval(async () => {
       const currentPos = posRef.current
@@ -195,6 +207,7 @@ export default function ActiveTripScreen() {
         <div className="clay card map-box" style={{ padding: 0, minHeight: 360 }}>
           <MapContainer center={MAP_DEFAULTS.center} zoom={MAP_DEFAULTS.zoom} style={{ height: '100%', width: '100%' }}>
             <MapController />
+            <MapInvalidator />
             <TileLayer url={MAP_DEFAULTS.tileUrl} attribution={MAP_DEFAULTS.attribution} />
             {activePath && (
               <Polyline 

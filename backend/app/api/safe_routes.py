@@ -10,9 +10,13 @@ Returns 2-3 route alternatives with:
   - Factor breakdown per segment
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, Header
 from pydantic import BaseModel, Field
 from typing import List, Optional
+from sqlalchemy.orm import Session
+from app.models.database import get_db
+from app.api.routes_plan import _upsert_route_history
+from app.deps import get_current_user
 from datetime import datetime
 import httpx
 import math
@@ -32,6 +36,9 @@ class SafePlanRequest(BaseModel):
     mode: str = "walk"
     depart_at: Optional[datetime] = None
     depart_hour: Optional[int] = None
+    prefetched_routes: Optional[List[dict]] = None
+    origin_name: Optional[str] = None
+    destination_name: Optional[str] = None
 
 
 class SegmentScore(BaseModel):
@@ -706,7 +713,11 @@ def score_route_with_ml(route, depart_hour, mode):
 # ─── API Endpoint ──────────────────────────────────────────────────────
 
 @router.post("/safe-plan", response_model=List[ScoredRoute])
-async def safe_plan(req: SafePlanRequest):
+async def safe_plan(
+    req: SafePlanRequest,
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None)
+):
     """
     Plan routes with ML-powered safety scoring.
     Returns 5 geometrically distinct route alternatives ranked by safety.
@@ -722,7 +733,24 @@ async def safe_plan(req: SafePlanRequest):
 
     raw_routes = []
     
-    if req.mode == "any":
+    if req.prefetched_routes:
+        # Frontend successfully bypassed DNS block and provided routes
+        raw_routes = req.prefetched_routes
+        # duplicate if any
+        if req.mode == "any":
+            import copy
+            expanded = []
+            for m in ["walk", "drive"]:
+                r_copy = copy.deepcopy(raw_routes)
+                for r in r_copy:
+                    r["name"] = f"[{m.title()}] {r.get('name', '')}"
+                    r["_calc_mode"] = m
+                expanded.extend(r_copy)
+            raw_routes = expanded
+        else:
+            for r in raw_routes:
+                r["_calc_mode"] = req.mode
+    elif req.mode == "any":
         import copy
         # Fetch ONCE from OSRM to avoid rate limits, since OSRM public only supports driving anyway.
         # We will simulate the multiple modes by evaluating the same geometries with different speeds.

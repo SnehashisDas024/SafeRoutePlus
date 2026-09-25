@@ -120,6 +120,18 @@ function MapFitter({ routes, selected }: { routes: ScoredRoute[], selected: numb
   return null
 }
 
+
+const MapInvalidator = () => {
+  const map = useMap()
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize()
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [map])
+  return null
+}
+
 export default function RouteCompareScreen() {
   const nav = useRouterLocation()
   const navigate = useNavigate()
@@ -402,6 +414,7 @@ export default function RouteCompareScreen() {
             zoom={MAP_DEFAULTS.zoom}
             style={{ height: '100%', width: '100%', minHeight: 460 }}
           >
+            <MapInvalidator />
             <TileLayer url={MAP_DEFAULTS.tileUrl} attribution={MAP_DEFAULTS.attribution} />
             <MapFitter routes={routes} selected={selected} />
 

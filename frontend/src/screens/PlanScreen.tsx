@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -95,6 +95,18 @@ function MapController({
   return null
 }
 
+
+const MapInvalidator = () => {
+  const map = useMap()
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize()
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [map])
+  return null
+}
+
 export default function PlanScreen() {
   const navigate = useNavigate()
   const [origin, setOrigin] = useState<[number, number] | null>(null)
@@ -106,8 +118,28 @@ export default function PlanScreen() {
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null)
   const [recentRoutes, setRecentRoutes] = useState<RouteHistoryItem[]>([])
   const [frequentRoutes, setFrequentRoutes] = useState<RouteHistoryItem[]>([])
+
+  const recentOrigins = useMemo(() => {
+    const unique = new Map<string, [number, number]>()
+    recentRoutes.forEach(r => {
+      if (r.origin.name && !unique.has(r.origin.name)) {
+        unique.set(r.origin.name, r.origin.coordinates)
+      }
+    })
+    return Array.from(unique.entries()).map(([name, coords]) => ({ name, coords })).slice(0, 5)
+  }, [recentRoutes])
+
+  const recentDestinations = useMemo(() => {
+    const unique = new Map<string, [number, number]>()
+    recentRoutes.forEach(r => {
+      if (r.destination.name && !unique.has(r.destination.name)) {
+        unique.set(r.destination.name, r.destination.coordinates)
+      }
+    })
+    return Array.from(unique.entries()).map(([name, coords]) => ({ name, coords })).slice(0, 5)
+  }, [recentRoutes])
   const [historyLoading, setHistoryLoading] = useState(false)
-  const [mode, setMode] = useState<'walk' | 'drive'>('walk')
+  const [mode, setMode] = useState<'walk' | 'drive' | 'any'>('any')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const { location: currentLoc, start } = useLocation()
@@ -164,9 +196,34 @@ export default function PlanScreen() {
     setLoading(true)
     setError('')
     try {
+      let prefetched: any[] | undefined = undefined;
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${origin[0]},${origin[1]};${destination[0]},${destination[1]}?alternatives=3&overview=full&geometries=geojson&steps=false`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.message || "Failed to fetch map data");
+        }
+        if (data.routes && data.routes.length > 0) {
+          prefetched = data.routes.map((r: any, idx: number) => ({
+            name: `Route Alternative ${idx + 1}`,
+            geometry: r.geometry,
+            distance: r.distance,
+            duration: mode === 'walk' ? r.duration * 5 : r.duration
+          }));
+        } else {
+          throw new Error("No routable roads found between these locations.");
+        }
+      } catch (e: any) {
+        setError(`Map Error: ${e.message}`);
+        setLoading(false);
+        return;
+      }
+
       const routes: ScoredRoute[] = await safePlanRoute({
         origin,
         destination,
+        prefetched_routes: prefetched,
         origin_name: originName || undefined,
         destination_name: destName || undefined,
         mode,
@@ -226,7 +283,8 @@ export default function PlanScreen() {
             zoom={MAP_DEFAULTS.zoom}
             style={{ height: '100%', width: '100%', minHeight: 460 }}
           >
-            <TileLayer url={MAP_DEFAULTS.tileUrl} attribution={MAP_DEFAULTS.attribution} />
+            <MapInvalidator />
+              <TileLayer url={MAP_DEFAULTS.tileUrl} attribution={MAP_DEFAULTS.attribution} />
             <ClickCatcher onClick={handleMapClick} />
             <MapController origin={origin} destination={destination} />
 
@@ -430,7 +488,7 @@ export default function PlanScreen() {
           <div className="clay card mt-2">
             <h3>Travel mode</h3>
             <div className="row" style={{ gap: 8 }}>
-              {(['walk', 'drive'] as const).map((m) => (
+              {(['walk', 'drive', 'any'] as const).map((m) => (
                 <button
                   key={m}
                   className={`chip${mode === m ? ' active' : ''}`}
@@ -438,13 +496,11 @@ export default function PlanScreen() {
                   onClick={() => setMode(m)}
                 >
                   {m === 'walk' ? (
-                    <>
-                      <IconWalk size={17} /> Walk
-                    </>
+                    <><IconWalk size={17} /> Walk</>
+                  ) : m === 'drive' ? (
+                    <><IconCar size={17} /> Drive</>
                   ) : (
-                    <>
-                      <IconCar size={17} /> Drive
-                    </>
+                    <><IconSpark size={17} /> Any (Best)</>
                   )}
                 </button>
               ))}
