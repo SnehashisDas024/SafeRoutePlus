@@ -6,7 +6,7 @@ import {
 } from './Icons'
 
 const NAV_MAIN = [
-  { to: '/', icon: IconHome, label: 'Dashboard' },
+  { to: '/dashboard', icon: IconHome, label: 'Dashboard' },
   { to: '/plan', icon: IconMap, label: 'Plan Route' },
   { to: '/trip', icon: IconCompass, label: 'Active Trip' },
   { to: '/sos', icon: IconSiren, label: 'Emergency SOS' },
@@ -20,7 +20,7 @@ const NAV_SETTINGS = [
 ]
 
 const BOTTOM_ITEMS = [
-  { to: '/', icon: IconHome, label: 'Home' },
+  { to: '/dashboard', icon: IconHome, label: 'Home' },
   { to: '/plan', icon: IconMap, label: 'Plan' },
   { to: '/sos', icon: IconSiren, label: 'SOS' },
   { to: '/trip', icon: IconCompass, label: 'Trip' },
@@ -59,7 +59,7 @@ export default function Layout() {
         <NavLink
           key={to}
           to={to}
-          end={to === '/'}
+          end={to === '/dashboard'}
           className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
         >
           <span className="nav-icon"><Icon size={19} /></span>
@@ -72,7 +72,7 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <aside className={`sidebar${drawerOpen ? ' open' : ''}`}>
-        <div className="brand">
+        <div className="brand" onClick={() => window.location.href="/"} style={{cursor: "pointer"}}>
           <div className="brand-logo"><IconShield size={24} color="#14496B" /></div>
           <div>
             <div className="brand-name">Safe<span>Route+</span></div>
@@ -126,7 +126,7 @@ export default function Layout() {
 
       <nav className="bottom-nav">
         {BOTTOM_ITEMS.map(({ to, icon: Icon, label }) => (
-          <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>
+          <NavLink key={to} to={to} end={to === '/dashboard'} className={({ isActive }) => (isActive ? 'active' : '')}>
             <Icon size={19} />
             {label}
           </NavLink>
