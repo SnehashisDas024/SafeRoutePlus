@@ -13,6 +13,13 @@ router = APIRouter(prefix="/trips", tags=["Trips"])
 
 @router.post("/start")
 async def start_trip(req: TripStartRequest, db: Session = Depends(get_db), user_id: str = Depends(get_current_user)):
+    from app.models.schema import User
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        user = User(id=user_id, phone="+919876543210", name="Demo User")
+        db.add(user)
+        db.commit()
+
     trip_id = str(uuid.uuid4())
     
     origin_pt = Point(req.origin[0], req.origin[1])

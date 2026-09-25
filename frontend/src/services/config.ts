@@ -22,18 +22,24 @@ export const MAP_DEFAULTS = {
 export const KOLKATA_PRESETS = [
   {
     name: 'Park Street → Victoria Memorial',
+    originName: 'Park Street',
+    destName: 'Victoria Memorial',
     mode: 'walk' as const,
     origin: [88.3524, 22.5513] as [number, number],
     destination: [88.3426, 22.5448] as [number, number],
   },
   {
     name: 'Howrah Station → B.B.D. Bagh',
+    originName: 'Howrah Station',
+    destName: 'B.B.D. Bagh',
     mode: 'walk' as const,
     origin: [88.3426, 22.5851] as [number, number],
     destination: [88.3512, 22.5726] as [number, number],
   },
   {
     name: 'Salt Lake Sector V → Esplanade',
+    originName: 'Salt Lake Sector V',
+    destName: 'Esplanade',
     mode: 'drive' as const,
     origin: [88.4332, 22.5744] as [number, number],
     destination: [88.3528, 22.5647] as [number, number],

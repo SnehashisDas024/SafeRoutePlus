@@ -28,6 +28,11 @@ def rehydrate_state_from_db():
     
     db = SessionLocal()
     try:
+        from app.models.schema import User
+        if not db.query(User).filter(User.id == "test_user_id").first():
+            db.add(User(id="test_user_id", phone="+919876543210", name="Demo User"))
+            db.commit()
+
         # Load active trips
         active_trips = db.query(Trip).filter(Trip.status == "active").all()
         for trip in active_trips:
