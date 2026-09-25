@@ -1,11 +1,13 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline } from 'react-leaflet'
 import { useLocation } from '../hooks/useLocation'
-import { planRoute } from '../services/api'
+import { planRoute, getRecentRoutes, getFrequentRoutes } from '../services/api'
 import { formatCoords } from '../services/location'
 import { MAP_DEFAULTS } from '../services/config'
 import type { LeafletMouseEvent, Map as LeafletMap } from 'leaflet'
+import type { RouteHistoryItem } from '../types'
+
 
 // Kolkata demo presets
 const KOLKATA_PRESETS = [
@@ -33,22 +35,53 @@ function PlanScreen() {
   const navigate = useNavigate()
   const [origin, setOrigin] = useState<[number, number] | null>(null)
   const [destination, setDestination] = useState<[number, number] | null>(null)
+  const [originName, setOriginName] = useState<string>('')
+  const [destName, setDestName] = useState<string>('')
   const [mode, setMode] = useState<'walk' | 'drive'>('walk')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [recentRoutes, setRecentRoutes] = useState<RouteHistoryItem[]>([])
+  const [frequentRoutes, setFrequentRoutes] = useState<RouteHistoryItem[]>([])
+  const [historyTab, setHistoryTab] = useState<'recent' | 'frequent'>('recent')
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null)
   
   const { start, location: currentLoc } = useLocation()
   const mapRef = useRef<LeafletMap | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    const fetchHistory = async () => {
+      try {
+        const [recent, frequent] = await Promise.all([
+          getRecentRoutes(10).catch(() => []),
+          getFrequentRoutes(10).catch(() => []),
+        ])
+        if (mounted) {
+          setRecentRoutes(recent)
+          setFrequentRoutes(frequent)
+        }
+      } catch {
+        // silent fallback
+      }
+    }
+    fetchHistory()
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!mapRef.current) return
     const containerPoint = mapRef.current.containerPointToLayerPoint([e.nativeEvent.offsetX, e.nativeEvent.offsetY])
     const latlng = mapRef.current.layerPointToLatLng(containerPoint)
     const { lat, lng } = latlng
+    setSelectedHistoryId(null)
     if (!origin) {
       setOrigin([lng, lat])
+      setOriginName(formatCoords(lat, lng))
     } else if (!destination) {
       setDestination([lng, lat])
+      setDestName(formatCoords(lat, lng))
     }
   }
 
@@ -65,6 +98,8 @@ function PlanScreen() {
       const routes = await planRoute({
         origin,
         destination,
+        origin_name: originName || undefined,
+        destination_name: destName || undefined,
         mode,
         depart_at: new Date().toISOString(),
       })
@@ -80,9 +115,15 @@ function PlanScreen() {
   }
 
   const useCurrentLocation = () => {
+    setSelectedHistoryId(null)
     if (currentLoc) {
-      if (!origin) setOrigin([currentLoc.lon, currentLoc.lat])
-      else if (!destination) setDestination([currentLoc.lon, currentLoc.lat])
+      if (!origin) {
+        setOrigin([currentLoc.lon, currentLoc.lat])
+        setOriginName('Current Location')
+      } else if (!destination) {
+        setDestination([currentLoc.lon, currentLoc.lat])
+        setDestName('Current Location')
+      }
     } else {
       start()
     }
@@ -91,13 +132,29 @@ function PlanScreen() {
   const applyPreset = (preset: typeof KOLKATA_PRESETS[0]) => {
     setOrigin(preset.origin)
     setDestination(preset.destination)
+    setOriginName(preset.name.split(' → ')[0])
+    setDestName(preset.name.split(' → ')[1])
     setMode(preset.mode)
+    setSelectedHistoryId(null)
+  }
+
+  const applyHistoryItem = (item: RouteHistoryItem) => {
+    setOrigin(item.origin.coordinates)
+    setDestination(item.destination.coordinates)
+    setOriginName(item.origin.name || formatCoords(item.origin.coordinates[1], item.origin.coordinates[0]))
+    setDestName(item.destination.name || formatCoords(item.destination.coordinates[1], item.destination.coordinates[0]))
+    setMode(item.mode)
+    setSelectedHistoryId(item.id)
   }
 
   const clearSelection = () => {
     setOrigin(null)
     setDestination(null)
+    setOriginName('')
+    setDestName('')
+    setSelectedHistoryId(null)
   }
+
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' as const }}>
@@ -145,9 +202,79 @@ function PlanScreen() {
       </div>
       
       <div style={styles.controls}>
+        {(recentRoutes.length > 0 || frequentRoutes.length > 0) && (
+          <div style={styles.presetsSection}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <h3 style={{ margin: 0 }}>Saved Routes</h3>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  type="button"
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    border: '1px solid #ddd',
+                    background: historyTab === 'recent' ? '#1976d2' : '#f5f5f5',
+                    color: historyTab === 'recent' ? '#fff' : '#333',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setHistoryTab('recent')}
+                >
+                  Recent ({recentRoutes.length})
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    border: '1px solid #ddd',
+                    background: historyTab === 'frequent' ? '#1976d2' : '#f5f5f5',
+                    color: historyTab === 'frequent' ? '#fff' : '#333',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setHistoryTab('frequent')}
+                >
+                  Frequent ({frequentRoutes.length})
+                </button>
+              </div>
+            </div>
+            <div style={styles.presetsGrid}>
+              {(historyTab === 'recent' ? recentRoutes : frequentRoutes).map((item) => {
+                const isSelected = selectedHistoryId === item.id
+                const oName = item.origin.name || formatCoords(item.origin.coordinates[1], item.origin.coordinates[0])
+                const dName = item.destination.name || formatCoords(item.destination.coordinates[1], item.destination.coordinates[0])
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => applyHistoryItem(item)}
+                    style={{
+                      ...styles.presetBtn,
+                      border: isSelected ? '2px solid #1976d2' : styles.presetBtn.border,
+                      background: isSelected ? '#e3f2fd' : styles.presetBtn.background,
+                    }}
+                    disabled={loading}
+                  >
+                    <span style={styles.presetIcon}>{item.mode === 'walk' ? '🚶' : '🚗'}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                      {oName} → {dName}
+                    </span>
+                    {historyTab === 'frequent' && (
+                      <span style={{ fontSize: '11px', color: '#666', background: '#eee', padding: '1px 5px', borderRadius: 4 }}>
+                        {item.use_count}x
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         <div style={styles.presetsSection}>
           <h3>Quick Demos (Kolkata)</h3>
           <div style={styles.presetsGrid}>
+
             {KOLKATA_PRESETS.map((preset, i) => (
               <button
                 key={i}

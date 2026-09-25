@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { safePlanRoute } from '../services/api'
+import { planRoute, safePlanRoute, getRecentRoutes, getFrequentRoutes } from '../services/api'
 import { useLocation } from '../hooks/useLocation'
 import { MAP_DEFAULTS, KOLKATA_PRESETS } from '../services/config'
 import { IconPin, IconSatellite, IconWalk, IconCar, IconSpark, IconShield, IconCheck } from '../components/Icons'
 import PlaceAutocomplete from '../components/PlaceAutocomplete'
+import RouteHistoryList from '../components/RouteHistoryList'
 import type { LeafletMouseEvent } from 'leaflet'
-import type { ScoredRoute, PlanNavState } from '../types'
+import type { RouteCandidate, ScoredRoute, PlanNavState, RouteHistoryItem } from '../types'
 
 const INK = '#1E4E6E'
 
@@ -102,14 +103,45 @@ export default function PlanScreen() {
   const [destName, setDestName] = useState<string>('')
   const [activeTarget, setActiveTarget] = useState<'origin' | 'destination'>('origin')
   const [selectedPreset, setSelectedPreset] = useState<string | null>(null)
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null)
+  const [recentRoutes, setRecentRoutes] = useState<RouteHistoryItem[]>([])
+  const [frequentRoutes, setFrequentRoutes] = useState<RouteHistoryItem[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
   const [mode, setMode] = useState<'walk' | 'drive'>('walk')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const { location: currentLoc, start } = useLocation()
 
+  // Fetch recent and frequent routes on mount
+  useEffect(() => {
+    let mounted = true
+    const fetchHistory = async () => {
+      setHistoryLoading(true)
+      try {
+        const [recent, frequent] = await Promise.all([
+          getRecentRoutes(10).catch(() => []),
+          getFrequentRoutes(10).catch(() => []),
+        ])
+        if (mounted) {
+          setRecentRoutes(recent)
+          setFrequentRoutes(frequent)
+        }
+      } catch {
+        // non-blocking
+      } finally {
+        if (mounted) setHistoryLoading(false)
+      }
+    }
+    fetchHistory()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
   const handleMapClick = (e: LeafletMouseEvent) => {
     const c: [number, number] = [e.latlng.lng, e.latlng.lat]
     setSelectedPreset(null)
+    setSelectedHistoryId(null)
     setError('')
     if (activeTarget === 'origin') {
       setOrigin(c)
@@ -135,6 +167,8 @@ export default function PlanScreen() {
       const routes: ScoredRoute[] = await safePlanRoute({
         origin,
         destination,
+        origin_name: originName || undefined,
+        destination_name: destName || undefined,
         mode,
         depart_at: new Date().toISOString(),
       })
@@ -153,6 +187,18 @@ export default function PlanScreen() {
     setDestName(p.destName || p.name.split(' → ')[1])
     setMode(p.mode)
     setSelectedPreset(p.name)
+    setSelectedHistoryId(null)
+    setError('')
+  }
+
+  const applyHistoryItem = (item: RouteHistoryItem) => {
+    setOrigin(item.origin.coordinates)
+    setDestination(item.destination.coordinates)
+    setOriginName(item.origin.name || `${item.origin.coordinates[1].toFixed(4)}, ${item.origin.coordinates[0].toFixed(4)}`)
+    setDestName(item.destination.name || `${item.destination.coordinates[1].toFixed(4)}, ${item.destination.coordinates[0].toFixed(4)}`)
+    setMode(item.mode === 'drive' ? 'drive' : 'walk')
+    setSelectedHistoryId(item.id)
+    setSelectedPreset(null)
     setError('')
   }
 
@@ -162,9 +208,11 @@ export default function PlanScreen() {
     setOriginName('')
     setDestName('')
     setSelectedPreset(null)
+    setSelectedHistoryId(null)
     setActiveTarget('origin')
     setError('')
   }
+
 
   const toLL = (c: [number, number] | null) => (c ? ([c[1], c[0]] as [number, number]) : null)
 
@@ -403,6 +451,15 @@ export default function PlanScreen() {
             </div>
           </div>
 
+          {/* Saved Routes (Recent and Frequent) */}
+          <RouteHistoryList
+            recentRoutes={recentRoutes}
+            frequentRoutes={frequentRoutes}
+            selectedRouteId={selectedHistoryId}
+            loading={historyLoading}
+            onSelectRoute={applyHistoryItem}
+          />
+
           <div className="clay card mt-2">
             <h3 className="h-ico">
               <span className="h-ico-tile">
@@ -410,6 +467,7 @@ export default function PlanScreen() {
               </span>
               Quick presets (Auto-fill)
             </h3>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {KOLKATA_PRESETS.map((p) => {
                 const isSelected = selectedPreset === p.name

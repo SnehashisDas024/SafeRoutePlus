@@ -38,12 +38,30 @@ export interface RouteCandidate {
   total_time_sec: number
 }
 
+export interface RoutePointInfo {
+  name?: string
+  coordinates: [number, number]
+}
+
+export interface RouteHistoryItem {
+  id: string
+  origin: RoutePointInfo
+  destination: RoutePointInfo
+  mode: 'walk' | 'drive'
+  use_count: number
+  last_used_at: string
+  created_at?: string
+}
+
 export interface RoutePlanRequest {
   origin: [number, number]
   destination: [number, number]
+  origin_name?: string
+  destination_name?: string
   mode: 'walk' | 'drive'
   depart_at: string
 }
+
 
 export interface TripStartRequest {
   origin: [number, number]

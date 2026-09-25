@@ -176,3 +176,31 @@ class VoiceConfig(Base):
     duress_word_hash = Column(String)
     enabled = Column(Boolean, default=True)
 
+class RouteHistory(Base):
+    __tablename__ = "route_history"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.id"), index=True, nullable=False)
+    origin_name = Column(String, nullable=True)
+    origin_lon = Column(Float, nullable=False)
+    origin_lat = Column(Float, nullable=False)
+    destination_name = Column(String, nullable=True)
+    destination_lon = Column(Float, nullable=False)
+    destination_lat = Column(Float, nullable=False)
+    mode = Column(String, default="walk", nullable=False)
+    use_count = Column(Integer, default=1, nullable=False)
+    last_used_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            'user_id',
+            'origin_lon',
+            'origin_lat',
+            'destination_lon',
+            'destination_lat',
+            'mode',
+            name='uq_route_history_user_endpoints_mode'
+        ),
+    )
+
+

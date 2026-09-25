@@ -5,8 +5,24 @@ from datetime import datetime
 class RoutePlanRequest(BaseModel):
     origin: List[float] # [lon, lat]
     destination: List[float] # [lon, lat]
+    origin_name: Optional[str] = None
+    destination_name: Optional[str] = None
     mode: str = "walk"
     depart_at: datetime = Field(default_factory=datetime.utcnow)
+
+class RoutePointInfo(BaseModel):
+    name: Optional[str] = None
+    coordinates: List[float] # [lon, lat]
+
+class RouteHistoryItem(BaseModel):
+    id: str
+    origin: RoutePointInfo
+    destination: RoutePointInfo
+    mode: str
+    use_count: int
+    last_used_at: datetime
+    created_at: Optional[datetime] = None
+
 
 class RouteCandidate(BaseModel):
     worst_segment_score: float

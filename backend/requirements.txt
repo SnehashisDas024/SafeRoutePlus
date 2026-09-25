@@ -9,9 +9,9 @@ pydantic-settings
 apscheduler
 slowapi
 shapely
-httpx
 h3
 pyproj
+httpx
 scikit-learn
 joblib
 python-dotenv
