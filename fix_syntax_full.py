@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import os
+at_path = r'C:\Users\sneha\Desktop\SafeRoutePlus\frontend\src\screens\ActiveTripScreen.tsx'
+
+content = """import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { MapContainer, TileLayer, CircleMarker, useMap, Polyline } from 'react-leaflet'
 
@@ -212,3 +215,7 @@ export default function ActiveTripScreen() {
     </>
   )
 }
+"""
+with open(at_path, 'w', encoding='utf-8') as f:
+    f.write(content)
+print('Rewrite full complete')

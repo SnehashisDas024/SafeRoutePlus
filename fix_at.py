@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import os
+base_dir = r'C:\Users\sneha\Desktop\SafeRoutePlus'
+at_path = os.path.join(base_dir, 'frontend', 'src', 'screens', 'ActiveTripScreen.tsx')
+
+content = '''import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { MapContainer, TileLayer, CircleMarker, useMap, Polyline } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet'
 
 // Helper component to fix Leaflet map tile rendering issues on resize
 function MapController() {
@@ -111,9 +115,6 @@ export default function ActiveTripScreen() {
   const destinationStr = localStorage.getItem('activeDestination')
   const destination: [number, number] | null = destinationStr ? JSON.parse(destinationStr) : null
 
-  const pathStr = localStorage.getItem('activePath')
-  const activePath: [number, number][] | null = pathStr ? JSON.parse(pathStr) : null
-
   function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
     const R = 6371e3
     const p1 = lat1 * Math.PI/180
@@ -139,10 +140,10 @@ export default function ActiveTripScreen() {
       )}
 
       <div className="row mt-2 mb-2" style={{ flexWrap: 'wrap' }}>
-        <span className={`badge ${wsStatus === 'connected' ? 'safe' : 'warn'}`}>
+        <span className={adge \}>
           ● {wsStatus === 'connected' ? 'Live connected' : wsStatus}
         </span>
-        <span className="badge neutral">Trip {tripId.slice(0, 8)}...</span>
+        <span className="badge neutral">Trip {tripId.slice(0, 8)}…</span>
         {position && <span className="badge neutral"><IconSignal size={13} /> {position[0].toFixed(4)}, {position[1].toFixed(4)}</span>}
       </div>
 
@@ -151,12 +152,6 @@ export default function ActiveTripScreen() {
           <MapContainer center={MAP_DEFAULTS.center} zoom={MAP_DEFAULTS.zoom} style={{ height: '100%', width: '100%' }}>
             <MapController />
             <TileLayer url={MAP_DEFAULTS.tileUrl} attribution={MAP_DEFAULTS.attribution} />
-            {activePath && (
-              <Polyline 
-                positions={activePath.map(p => [p[1], p[0]] as [number, number])} 
-                pathOptions={{ color: '#4E9FDB', weight: 5, opacity: 0.8 }} 
-              />
-            )}
             {position && (
               <CircleMarker center={position} radius={10} pathOptions={{ color: '#2F7FBC', fillColor: '#6FB6E8', fillOpacity: 1, weight: 3 }} />
             )}
@@ -212,3 +207,7 @@ export default function ActiveTripScreen() {
     </>
   )
 }
+'''
+with open(at_path, 'w', encoding='utf-8') as f:
+    f.write(content)
+print('ActiveTripScreen.tsx written')
