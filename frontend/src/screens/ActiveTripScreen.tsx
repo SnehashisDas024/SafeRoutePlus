@@ -23,7 +23,7 @@ function MapController({ position }: { position: [number, number] | null }) {
   // Pan map to current position
   useEffect(() => {
     if (position) {
-      map.flyTo(position, 16, { duration: 1 })
+      map.setView(position, map.getZoom() > 14 ? map.getZoom() : 16, { animate: false })
     }
   }, [map, position])
   
