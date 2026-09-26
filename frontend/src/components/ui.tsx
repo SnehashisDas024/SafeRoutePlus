@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { EscalationLevel, ESCALATION_COLORS, ESCALATION_LABELS } from '../types'
 import { IconClose } from './Icons'
 
