@@ -326,7 +326,7 @@ export default function ActiveTripScreen() {
         {position && <span className={'badge ' + (wsStatus === 'connected' ? 'safe' : 'warn')}><IconSignal size={13} /> {position[0].toFixed(4)}, {position[1].toFixed(4)}</span>}
       </div>
 
-      <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 1.5fr) minmax(280px, 1fr)' }}>
+      <div className="grid plan-layout">
         <div className="clay card map-box" style={{ padding: 0, minHeight: 360, position: 'relative' }}>
           <MapContainer center={MAP_DEFAULTS.center} zoom={MAP_DEFAULTS.zoom} style={{ height: '100%', width: '100%' }}>
             <MapController position={position} />

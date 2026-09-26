@@ -303,7 +303,7 @@ export default function PlanScreen() {
 
   return (
     <>
-      <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 1.4fr) minmax(280px, 1fr)', gridAutoColumns: '1fr' }}>
+      <div className="grid plan-layout">
         {/* Leaflet Map Box */}
         <div className="clay card map-box" style={{ padding: 0, minHeight: 460, position: 'relative', overflow: 'hidden' }}>
           <MapContainer
