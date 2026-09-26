@@ -15,3 +15,4 @@ httpx
 scikit-learn
 joblib
 python-dotenv
+cryptography

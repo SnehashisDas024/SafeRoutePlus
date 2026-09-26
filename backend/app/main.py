@@ -43,13 +43,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from app.api import routes_plan, trips, sos, voice, ws_stream, contacts, reports, tags
+from app.api import routes_plan, trips, sos, offline_sos, voice, ws_stream, contacts, reports, tags
 from app.api import safe_routes
 
 app.include_router(routes_plan.router)
 app.include_router(safe_routes.router)
 app.include_router(trips.router)
 app.include_router(sos.router)
+app.include_router(offline_sos.router)
 app.include_router(voice.router)
 app.include_router(ws_stream.router)
 app.include_router(contacts.router)

@@ -1,4 +1,5 @@
 import { BASE_URL } from './config';
+import { OfflineSosEnvelope } from './offlineSos';
 
 export interface RoutePlanRequest {
   origin: number[];
@@ -145,5 +146,17 @@ export const suggestTags = async (note: string): Promise<SuggestTagsResponse> =>
   return fetchApi<SuggestTagsResponse>('/reports/suggest-tags', {
     method: 'POST',
     body: JSON.stringify({ note }),
+  });
+};
+
+export const ingestOfflineSOS = async (envelope: OfflineSosEnvelope) => {
+  return fetchApi<{
+    status: 'accepted' | 'duplicate' | 'rejected' | 'expired';
+    message_id: string;
+    ack_token: string;
+    escalation_level?: string;
+  }>('/offline-sos/ingest', {
+    method: 'POST',
+    body: JSON.stringify({ envelope, gateway_device_id: envelope.origin_device_id }),
   });
 };
