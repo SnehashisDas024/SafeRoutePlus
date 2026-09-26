@@ -143,3 +143,18 @@ export async function fetchTripHistory() {
   if (!res.ok) throw new Error('Failed to fetch history')
   return res.json()
 }
+
+
+export async function uploadAudioChunk(tripId: string, audioBlob: Blob): Promise<{ action: string, transcript: string }> {
+  const token = localStorage.getItem('authToken') || AUTH_TOKEN
+  const formData = new FormData()
+  formData.append('file', audioBlob, 'chunk.webm')
+  
+  const res = await fetch(`${BASE_URL}/trips/${tripId}/audio-stream`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData
+  })
+  if (!res.ok) throw new Error('Failed to upload audio chunk')
+  return res.json()
+}
