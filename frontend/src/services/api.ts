@@ -31,7 +31,7 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: AUTH_TOKEN,
+        Authorization: `Bearer ${localStorage.getItem('authToken') || AUTH_TOKEN}`,
         ...options.headers,
       },
     })
@@ -124,3 +124,37 @@ export const setVoiceConfig = (c: { safe_word_hash: string; duress_word_hash: st
   fetchApi('/users/voice-config', { method: 'POST', body: JSON.stringify(c) })
 
 export { ApiError, BASE_URL }
+
+
+export async function fetchUserProfile() {
+  const token = localStorage.getItem('authToken')
+  const res = await fetch(`${BASE_URL}/users/me`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  if (!res.ok) throw new Error('Failed to fetch profile')
+  return res.json()
+}
+
+export async function fetchTripHistory() {
+  const token = localStorage.getItem('authToken')
+  const res = await fetch(`${BASE_URL}/trips`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  if (!res.ok) throw new Error('Failed to fetch history')
+  return res.json()
+}
+
+
+export async function uploadAudioChunk(tripId: string, audioBlob: Blob): Promise<{ action: string, transcript: string }> {
+  const token = localStorage.getItem('authToken') || AUTH_TOKEN
+  const formData = new FormData()
+  formData.append('file', audioBlob, 'chunk.webm')
+  
+  const res = await fetch(`${BASE_URL}/trips/${tripId}/audio-stream`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData
+  })
+  if (!res.ok) throw new Error('Failed to upload audio chunk')
+  return res.json()
+}

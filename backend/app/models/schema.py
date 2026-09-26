@@ -53,6 +53,8 @@ class User(Base):
     __tablename__ = "users"
     id = Column(String, primary_key=True)
     phone = Column(String, unique=True, index=True)
+    email = Column(String, unique=True)
+    password_hash = Column(String)
     name = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
 

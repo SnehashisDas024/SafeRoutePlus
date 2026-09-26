@@ -63,7 +63,7 @@ export default function ReportScreen() {
     try {
       await sendReport(tripId, { rating, tags: selected, note: note || undefined })
       localStorage.removeItem('activeTripId')
-      navigate('/', { state: { reported: true } })
+      navigate('/dashboard', { state: { reported: true } })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to submit report')
     } finally {

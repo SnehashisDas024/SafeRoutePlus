@@ -12,6 +12,7 @@ export function useLocation() {
   const [location, setLocation] = useState<LocState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [watching, setWatching] = useState(false)
+  const [mockLocation, setMockLocation] = useState<LocState | null>(null)
   const watchId = useRef<number | null>(null)
 
   const stop = useCallback(() => {
@@ -47,5 +48,6 @@ export function useLocation() {
 
   useEffect(() => () => stop(), [stop])
 
-  return { location, error, watching, start, stop }
+  const effectiveLocation = mockLocation || location
+  return { location: effectiveLocation, error, watching, start, stop, setMockLocation }
 }
