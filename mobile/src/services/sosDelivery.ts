@@ -138,7 +138,14 @@ export async function deliverSos(
   }
 }
 
+export let isRelayActive = false;
+
+export function getRelayQueueSize(): number {
+  return relayQueue.size;
+}
+
 export async function startOfflineSosRelay(): Promise<boolean> {
+  isRelayActive = true;
   const started = await startBleRelay(receiveRelayedEnvelope);
   if (!started) return false;
 
@@ -151,6 +158,7 @@ export async function startOfflineSosRelay(): Promise<boolean> {
 }
 
 export async function stopOfflineSosRelay(): Promise<void> {
+  isRelayActive = false;
   if (relayQueueTimer) clearInterval(relayQueueTimer);
   relayQueueTimer = undefined;
   await stopBleRelay();

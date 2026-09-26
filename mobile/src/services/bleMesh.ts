@@ -34,6 +34,21 @@ async function requestAndroidBlePermissions(): Promise<boolean> {
   return permissions.every(permission => results[permission] === PermissionsAndroid.RESULTS.GRANTED);
 }
 
+export async function checkBlePermissions(): Promise<boolean> {
+  if (Platform.OS !== 'android') return true;
+  const permissions = Number(Platform.Version) >= 31
+    ? [
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
+    ]
+    : [PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
+  for (const p of permissions) {
+    if (await PermissionsAndroid.check(p) === false) return false;
+  }
+  return true;
+}
+
 export function isBleMeshNativeModuleAvailable(): boolean {
   return Boolean(nativeBleMesh);
 }

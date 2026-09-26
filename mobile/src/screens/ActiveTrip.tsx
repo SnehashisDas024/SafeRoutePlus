@@ -6,6 +6,10 @@ import { getEscalation, sendCheckin } from '../services/api';
 import { startLocationUpdates, stopLocationUpdates, GPSPoint } from '../services/location';
 import { startShakeDetection, stopShakeDetection } from '../services/sensors';
 import { sendVoiceEvent } from '../services/api';
+
+import { checkBlePermissions, isBleMeshNativeModuleAvailable } from '../services/bleMesh';
+import { getRelayQueueSize, isRelayActive } from '../services/sosDelivery';
+
 import {
   deliverSos,
   flushOfflineSosQueue,
@@ -43,6 +47,21 @@ export default function ActiveTrip({ route, navigation }: any) {
   const [sosDeliveryStatus, setSosDeliveryStatus] = useState<string | null>(null);
   const [routeCoordinates, setRouteCoordinates] = useState<{ latitude: number; longitude: number }[]>(initialRouteCoords || []);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
+
+  const [bleStatus, setBleStatus] = useState<{ available: boolean; permissions: boolean; queue: number; active: boolean }>({ available: false, permissions: false, queue: 0, active: false });
+
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      setBleStatus({
+        available: isBleMeshNativeModuleAvailable(),
+        permissions: await checkBlePermissions(),
+        queue: getRelayQueueSize(),
+        active: isRelayActive
+      });
+    }, 2000);
+    return () => clearInterval(timer);
+  }, []);
+
   const mapRef = useRef<MapView>(null);
   
   // Countdown state
@@ -278,6 +297,18 @@ export default function ActiveTrip({ route, navigation }: any) {
             {level === 'L3_Alert' && triggerSource === 'voice_duress' ? 'SOS (Silent)' : 'SOS'}
           </Text>
         </TouchableOpacity>
+
+        <View style={styles.bleStatusContainer}>
+          <Text style={styles.bleStatusTitle}>BLE Mesh Network</Text>
+          <Text style={styles.bleStatusText}>
+            {!bleStatus.available ? 'Module unavailable (needs native build)' :
+             !bleStatus.permissions ? 'Permission denied (check Bluetooth settings)' :
+             !bleStatus.active ? 'Relay inactive' :
+             `Relay Active • Queued Packets: ${bleStatus.queue}`}
+          </Text>
+          <Text style={styles.bleStatusSub}>Best effort delivery without internet.</Text>
+        </View>
+
         {sosDeliveryStatus && (
           <Text style={styles.sosDeliveryStatus}>
             SOS delivery: {sosDeliveryStatus}
@@ -323,6 +354,11 @@ const styles = StyleSheet.create({
 mapContainer: { flex: 1 },
   map: { ...StyleSheet.absoluteFill },
   footer: { padding: 16, paddingBottom: 32, backgroundColor: 'white', borderTopWidth: 1, borderTopColor: '#eee' },
+
+  bleStatusContainer: { backgroundColor: '#f0f4f8', padding: 12, borderRadius: 8, marginBottom: 12 },
+  bleStatusTitle: { fontSize: 13, fontWeight: 'bold', color: '#1E4E6E', marginBottom: 2 },
+  bleStatusText: { fontSize: 13, color: '#333' },
+  bleStatusSub: { fontSize: 11, color: '#666', fontStyle: 'italic', marginTop: 4 },
   sosBtn: { backgroundColor: '#d32f2f', paddingVertical: 14, borderRadius: 8, alignItems: 'center' },
   sosBtnSilent: { backgroundColor: '#f57f17' },
   sosBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
