@@ -60,7 +60,7 @@ export function Modal({ open, onClose, title, children }: {
   children: React.ReactNode
 }) {
   if (!open) return null
-  return (
+  return createPortal(
     <div className="modal-overlay" onClick={onClose}>
       <div className="clay modal" onClick={e => e.stopPropagation()}>
         <div className="row-between mb-2">
@@ -71,7 +71,8 @@ export function Modal({ open, onClose, title, children }: {
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
