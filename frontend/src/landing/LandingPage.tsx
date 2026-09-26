@@ -42,7 +42,7 @@ export default function LandingPage() {
           <Link className="landing-button" to="/signup"><LandingIcon name="route" size={20} />Plan My Safe Route</Link>
           <a className="landing-button landing-button--secondary" href="#how-it-works"><LandingIcon name="play" size={19} />See How It Works</a>
         </div>
-        <p className="landing-journeys"><span><LandingIcon name="check" size={15} /></span><b>10,000+</b> journeys protected with care</p>
+        
       </div>
       <div className="landing-video-shell">
         <div className="landing-video-frame">
