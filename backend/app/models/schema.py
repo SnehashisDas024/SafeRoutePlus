@@ -3,41 +3,7 @@ from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 from sqlalchemy.types import TypeDecorator, LargeBinary
 from geoalchemy2.elements import WKBElement
 
-class Geometry(TypeDecorator):
-    impl = LargeBinary
-    cache_ok = True
-
-    def __init__(self, geometry_type='GEOMETRY', srid=4326, **kwargs):
-        super().__init__()
-        self.geometry_type = geometry_type
-        self.srid = srid
-
-    def process_bind_param(self, value, dialect):
-        if value is None:
-            return None
-        if isinstance(value, WKBElement):
-            raw = value.data
-            if isinstance(raw, memoryview):
-                raw = bytes(raw)
-            if isinstance(raw, bytes):
-                return raw
-            return raw
-        if hasattr(value, 'wkb'):
-            return value.wkb
-        if isinstance(value, bytes):
-            return value
-        if isinstance(value, str):
-            from shapely import wkt
-            wkt_part = value.split(';', 1)[1] if ';' in value else value
-            return wkt.loads(wkt_part).wkb
-        return bytes(value)
-
-    def process_result_value(self, value, dialect):
-        if value is None:
-            return None
-        if isinstance(value, (bytes, memoryview)):
-            return WKBElement(bytes(value), srid=self.srid)
-        return WKBElement(bytes(value), srid=self.srid)
+from geoalchemy2 import Geometry
 from app.models.database import Base
 from datetime import datetime
 import enum

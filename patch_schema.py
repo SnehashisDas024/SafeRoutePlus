@@ -1,45 +1,26 @@
-import os
-import re
+import codecs
 
 path = r'C:\Users\sneha\Desktop\SafeRoutePlus\backend\app\models\schema.py'
-with open(path, 'r', encoding='utf-8') as f:
-    content = f.read()
+with codecs.open(path, 'r', 'utf-8') as f:
+    lines = f.readlines()
 
-# Add to Report
-old_report = """class Report(Base):
-    __tablename__ = "reports"
-    id = Column(String, primary_key=True)
-    trip_id = Column(String)
-    h3_index = Column(String)
-    rating = Column(String)
-    tags = Column(ARRAY(String))
-    note = Column(String)
-    ts = Column(DateTime, default=datetime.utcnow)"""
+new_lines = []
+skip = False
+for line in lines:
+    if line.startswith('class Geometry(TypeDecorator):'):
+        skip = True
+        new_lines.append('from geoalchemy2 import Geometry\n')
+        continue
+    
+    if skip:
+        if line.startswith('from app.models.database import Base'):
+            skip = False
+            new_lines.append(line)
+        continue
+        
+    if not skip:
+        new_lines.append(line)
 
-new_report = """class Report(Base):
-    __tablename__ = "reports"
-    id = Column(String, primary_key=True)
-    user_id = Column(String, nullable=True)
-    trip_id = Column(String, nullable=True)
-    h3_index = Column(String)
-    rating = Column(String)
-    tags = Column(ARRAY(String))
-    note = Column(String)
-    source = Column(String, default='trip')
-    ts = Column(DateTime, default=datetime.utcnow)"""
-
-content = content.replace(old_report, new_report)
-
-# Add UserTrust
-user_trust = """
-class UserTrust(Base):
-    __tablename__ = "user_trust"
-    user_id = Column(String, primary_key=True)
-    trust_score = Column(Float, default=1.0)
-"""
-if "class UserTrust" not in content:
-    content += user_trust
-
-with open(path, 'w', encoding='utf-8') as f:
-    f.write(content)
-print("Updated schema.py")
+with codecs.open(path, 'w', 'utf-8') as f:
+    f.writelines(new_lines)
+print("Updated schema.py to use geoalchemy2.Geometry")
